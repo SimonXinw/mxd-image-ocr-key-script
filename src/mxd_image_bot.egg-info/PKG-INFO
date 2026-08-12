@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: mxd-image-bot
+Version: 0.1.0
+Summary: 基于屏幕视觉的冒险岛黑盒自动化实验框架
+Requires-Python: <3.14,>=3.10
+Requires-Dist: mss
+Requires-Dist: numpy
+Requires-Dist: opencv-python
+Requires-Dist: pydirectinput
+Requires-Dist: PyYAML
+Requires-Dist: ultralytics
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: ruff; extra == "dev"

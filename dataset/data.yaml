@@ -1,0 +1,10 @@
+# 目录结构：
+# dataset/images/train、dataset/images/val
+# dataset/labels/train、dataset/labels/val
+path: .
+train: images/train
+val: images/val
+
+names:
+  0: player
+  1: mob

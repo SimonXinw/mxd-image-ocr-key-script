@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mxd-image-bot"
+version = "0.1.0"
+description = "基于屏幕视觉的冒险岛黑盒自动化实验框架"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "mss",
+    "numpy",
+    "opencv-python",
+    "pydirectinput",
+    "PyYAML",
+    "ultralytics",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

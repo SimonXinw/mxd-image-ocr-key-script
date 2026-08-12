@@ -1,0 +1,10 @@
+mss
+numpy
+opencv-python
+pydirectinput
+PyYAML
+ultralytics
+
+[dev]
+pytest
+ruff
