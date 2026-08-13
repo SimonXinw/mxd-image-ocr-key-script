@@ -12,6 +12,7 @@ class Box:
     top: int
     right: int
     bottom: int
+    source: str = "unknown"
 
     @property
     def center(self) -> tuple[int, int]:

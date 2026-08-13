@@ -1,8 +1,10 @@
 window:
-  title_contains: MapleStory
+  title_contains: 北斗GMS083
   capture_region: null
 model:
   weights: models/best.pt
+  # 当前 Roboflow 权重对该服画面最高分大约只有 0.1 左右，0.55 会把所有框滤掉。
+  # 先用低阈值做联调；正式玩仍需对本服截图重训。
   confidence: 0.55
   image_size: 640
   device: auto
@@ -13,9 +15,11 @@ player:
   locator: hybrid
   name_template: assets/player_name.png
   template_threshold: 0.82
+  # 没有名字模板 / YOLO 找不到人时，假定镜头中心就是角色（冒险岛镜头通常跟角色）
+  fallback_to_frame_center: true
   template_center_offset:
   - 0
-  - -55
+  - -49
 behavior:
   profile: warrior
   dry_run: true

@@ -47,6 +47,7 @@ class YoloDetector:
                     top=round(top),
                     right=round(right),
                     bottom=round(bottom),
+                    source="yolo",
                 )
             )
 

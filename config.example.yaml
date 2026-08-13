@@ -1,11 +1,13 @@
 window:
   title_contains: "MapleStory"
   # 留空表示截取整个客户端区域；也可以限制为 [left, top, width, height]。
+  # 抓图默认 mss（屏幕截取），失败才回退 PrintWindow / BitBlt。
   capture_region: null
 
 model:
   weights: "models/best.pt"
-  confidence: 0.55
+  # 若预览里几乎没有框，先降到 0.12~0.25 观察；长期仍需用本服截图重训。
+  confidence: 0.25
   image_size: 640
   # auto：优先 NVIDIA CUDA，检测不到则 CPU；也可写 cuda / cpu / 0
   device: auto
@@ -17,6 +19,8 @@ player:
   locator: "hybrid"
   name_template: "assets/player_name.png"
   template_threshold: 0.82
+  # 找不到人时是否用画面中心当作角色（镜头跟角色时可用）
+  fallback_to_frame_center: true
   # 名字通常在角色下方，因此从名字模板中心向上偏移。
   template_center_offset: [0, -55]
 

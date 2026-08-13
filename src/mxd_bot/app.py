@@ -33,16 +33,19 @@ def run_bot(config: dict[str, Any]) -> None:
         config["window"]["title_contains"],
         config["window"].get("capture_region"),
     )
+    LOGGER.info(capture.describe())
 
     LOGGER.info(
-        "职业=%s，dry_run=%s；F8 暂停/继续，F9 或 Ctrl+C 退出",
+        "职业=%s，dry_run=%s，conf=%s；F8 暂停/继续，F9 或 Ctrl+C 退出",
         profile_name,
         behavior["dry_run"],
+        config["model"]["confidence"],
     )
     _countdown(float(behavior["startup_delay_seconds"]))
     paused = False
     last_frame_at = time.monotonic()
     fps = 0.0
+    last_diag_at = 0.0
 
     try:
         while True:
@@ -60,6 +63,25 @@ def run_bot(config: dict[str, Any]) -> None:
             player = player_locator.locate(frame, detections)
             monsters = [box for box in detections if box.class_name in monster_classes]
             decision = decision_engine.decide(player, monsters)
+
+            now_mono = time.monotonic()
+            if now_mono - last_diag_at >= 2.0:
+                last_diag_at = now_mono
+                top_conf = max((box.confidence for box in detections), default=0.0)
+                if player is None:
+                    player_label = "否"
+                else:
+                    score = f":{player.confidence:.2f}" if player.confidence > 0 else ""
+                    player_label = f"是({player.source}{score})"
+                LOGGER.info(
+                    "抓取=%s | 检测=%s 人=%s 怪=%s 最高分=%.3f | 动作=%s",
+                    capture.last_method,
+                    len(detections),
+                    player_label,
+                    len(monsters),
+                    top_conf,
+                    decision.action.value,
+                )
 
             if not paused:
                 controller.execute(decision)

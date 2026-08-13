@@ -50,7 +50,7 @@ class BotWorker(QThread):
         capture: WindowCapture | None = None
 
         try:
-            self.log_ready.emit("正在加载 YOLO 模型…")
+            self._emit_log("正在加载 YOLO 模型…")
             detector = YoloDetector(config["model"])
             player_locator = PlayerLocator(config["player"], config["model"]["player_class"])
             decision_engine = DecisionEngine(behavior, profile)
@@ -59,14 +59,17 @@ class BotWorker(QThread):
                 config["window"]["title_contains"],
                 config["window"].get("capture_region"),
             )
+            self._emit_log(capture.describe())
 
             self._running = True
-            self.log_ready.emit(
-                f"已启动：profile={profile_name}, dry_run={behavior['dry_run']}, target_fps={target_fps:.0f}"
+            self._emit_log(
+                f"已启动：profile={profile_name}, dry_run={behavior['dry_run']}, "
+                f"target_fps={target_fps:.0f}, conf={config['model']['confidence']}"
             )
 
             last_frame_at = time.monotonic()
             fps = 0.0
+            last_diag_at = 0.0
 
             while not self._stop_requested:
                 loop_started = time.monotonic()
@@ -75,6 +78,21 @@ class BotWorker(QThread):
                 player = player_locator.locate(frame, detections)
                 monsters = [box for box in detections if box.class_name in monster_classes]
                 decision = decision_engine.decide(player, monsters)
+
+                now_mono = time.monotonic()
+                if now_mono - last_diag_at >= 2.0:
+                    last_diag_at = now_mono
+                    top_conf = max((box.confidence for box in detections), default=0.0)
+                    if player is None:
+                        player_label = "否"
+                    else:
+                        score = f":{player.confidence:.2f}" if player.confidence > 0 else ""
+                        player_label = f"是({player.source}{score})"
+                    self._emit_log(
+                        f"抓取={capture.last_method} | 检测={len(detections)} "
+                        f"人={player_label} 怪={len(monsters)} "
+                        f"最高分={top_conf:.3f} | 动作={decision.action.value}"
+                    )
 
                 if not self._paused:
                     controller.execute(decision)
@@ -123,4 +141,8 @@ class BotWorker(QThread):
             if capture is not None:
                 capture.close()
             self._running = False
-            self.log_ready.emit("已停止")
+            self._emit_log("已停止")
+
+    def _emit_log(self, message: str) -> None:
+        LOGGER.info(message)
+        self.log_ready.emit(message)
