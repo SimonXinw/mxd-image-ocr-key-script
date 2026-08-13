@@ -33,6 +33,10 @@ behavior:
   jump_cooldown_seconds: 1.2
   debug_window: true
 
+ui:
+  # GUI 预览目标帧率。1660S 建议 30；2080 Super 可试 60。
+  target_fps: 30
+
 profiles:
   warrior:
     attack_key: "ctrl"

@@ -40,16 +40,24 @@ C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml collect
 C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train
 ```
 
-6. 先演练，看检测框和决策：
+6. 启动就会打开监控面板（默认）：
 
 ```powershell
-C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run --profile warrior --dry-run
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run
 ```
 
-7. 框和方向都对了，再考虑：
+`gui` 命令效果相同。左侧可切换职业、演练/真实、目标帧率；右侧是截屏镜像+检测框。
+
+只要命令行、不要面板时：
 
 ```powershell
-C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run --profile warrior --live
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run --cli --profile warrior --dry-run
+```
+
+7. 框和方向都对了，在面板里取消「演练模式」后再点开始；或：
+
+```powershell
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run --live
 ```
 
 重要：仓库里如果已有 `models/best.pt`，也可能只是合成色块冒烟模型，**不能直接认游戏怪物**。回家第一件事是采真实截图并重新训练。
@@ -266,8 +274,20 @@ CPU 训练过慢时可用带 GPU 的电脑或 Colab 训练，再把 `best.pt` �
 
 ## 6. 先以演练模式启动
 
+`run` / `gui` 默认都会打开监控面板（方案 A：左控制 + 右预览）：
+
 ```powershell
-python -m mxd_bot --config config.yaml run --profile warrior --dry-run
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run
+```
+
+- 预览是游戏截屏镜像，不是第二个客户端，可拖到冒险岛窗口旁边对照。
+- 默认目标帧率 30（`ui.target_fps`）。1660S 建议 30；R5 5600 + 2080 Super 可试 60。
+- 开始前勾选「演练模式」。
+
+只要命令行、不要面板：
+
+```powershell
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run --cli --profile warrior --dry-run
 ```
 
 牧师：

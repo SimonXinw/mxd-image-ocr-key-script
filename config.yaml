@@ -57,3 +57,5 @@ training:
   workers: 4
   device: auto
   resume_weights: runs/mxd_detect/weights/last.pt
+ui:
+  target_fps: 30

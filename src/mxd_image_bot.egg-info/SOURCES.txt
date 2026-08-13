@@ -8,7 +8,12 @@ src/mxd_bot/collect.py
 src/mxd_bot/config.py
 src/mxd_bot/decision.py
 src/mxd_bot/detector.py
+src/mxd_bot/device.py
+src/mxd_bot/gui.py
+src/mxd_bot/gui_app.py
+src/mxd_bot/gui_worker.py
 src/mxd_bot/input_controller.py
+src/mxd_bot/overlay.py
 src/mxd_bot/player_locator.py
 src/mxd_bot/train.py
 src/mxd_bot/types.py

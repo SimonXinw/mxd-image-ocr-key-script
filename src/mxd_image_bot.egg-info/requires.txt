@@ -2,6 +2,7 @@ mss
 numpy
 opencv-python
 pydirectinput
+PySide6
 PyYAML
 ultralytics
 

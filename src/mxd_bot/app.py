@@ -11,8 +11,8 @@ from mxd_bot.capture import WindowCapture
 from mxd_bot.decision import DecisionEngine
 from mxd_bot.detector import YoloDetector
 from mxd_bot.input_controller import InputController
+from mxd_bot.overlay import annotate_frame
 from mxd_bot.player_locator import PlayerLocator
-from mxd_bot.types import Box, Decision
 
 LOGGER = logging.getLogger(__name__)
 VK_F8 = 0x77
@@ -72,7 +72,15 @@ def run_bot(config: dict[str, Any]) -> None:
             last_frame_at = now
 
             if behavior["debug_window"]:
-                _show_debug(frame, detections, player, decision, fps, paused)
+                debug_frame = annotate_frame(
+                    frame,
+                    detections,
+                    player,
+                    decision,
+                    fps,
+                    paused,
+                )
+                cv2.imshow("MXD Vision Debug", debug_frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
 
@@ -81,44 +89,6 @@ def run_bot(config: dict[str, Any]) -> None:
         controller.release_all()
         capture.close()
         cv2.destroyAllWindows()
-
-
-def _show_debug(
-    frame: Any,
-    detections: list[Box],
-    player: Box | None,
-    decision: Decision,
-    fps: float,
-    paused: bool,
-) -> None:
-    for box in detections:
-        color = (0, 255, 255) if box.class_name == "player" else (0, 0, 255)
-        cv2.rectangle(frame, (box.left, box.top), (box.right, box.bottom), color, 2)
-        cv2.putText(
-            frame,
-            f"{box.class_name} {box.confidence:.2f}",
-            (box.left, max(15, box.top - 5)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.45,
-            color,
-            1,
-        )
-
-    if player is not None:
-        player_x, player_y = player.center
-        cv2.circle(frame, (player_x, player_y), 5, (0, 255, 0), -1)
-
-    status = "PAUSED" if paused else decision.action.value
-    cv2.putText(
-        frame,
-        f"{status} | FPS {fps:.1f} | F8 pause | F9 stop",
-        (10, 25),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (0, 255, 0),
-        2,
-    )
-    cv2.imshow("MXD Vision Debug", frame)
 
 
 def _key_pressed(virtual_key: int) -> bool:

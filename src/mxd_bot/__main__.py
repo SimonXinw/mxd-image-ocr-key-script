@@ -18,6 +18,7 @@ def main() -> None:
 
     subparsers.add_parser("collect", help="从游戏窗口采集训练截图")
     subparsers.add_parser("doctor", help="检查 PyTorch / CUDA 设备状态")
+    subparsers.add_parser("gui", help="启动监控面板（等同于 run，默认打开界面）")
 
     train_parser = subparsers.add_parser("train", help="训练 YOLO 检测模型")
     train_parser.add_argument(
@@ -30,9 +31,17 @@ def main() -> None:
         help="覆盖设备：auto / cuda / cpu / 0",
     )
 
-    run_parser = subparsers.add_parser("run", help="启动实时识别与决策")
-    run_parser.add_argument("--profile", help="覆盖 behavior.profile")
+    run_parser = subparsers.add_parser(
+        "run",
+        help="启动识别；默认打开监控面板，加 --cli 才用无界面模式",
+    )
+    run_parser.add_argument("--profile", help="覆盖 behavior.profile（面板下拉初始值也会同步）")
     run_parser.add_argument("--device", help="覆盖设备：auto / cuda / cpu / 0")
+    run_parser.add_argument(
+        "--cli",
+        action="store_true",
+        help="不打开监控面板，使用旧的命令行/OpenCV 调试窗",
+    )
     mode_group = run_parser.add_mutually_exclusive_group()
     mode_group.add_argument("--dry-run", action="store_true", help="只显示决策，不发送按键")
     mode_group.add_argument("--live", action="store_true", help="发送真实按键")
@@ -60,7 +69,25 @@ def main() -> None:
             runtime_config["model"]["device"] = args.device
             runtime_config["training"]["device"] = args.device
         train_model(runtime_config, resume=bool(args.resume))
-    elif args.command == "run":
+    elif args.command in {"gui", "run"}:
+        if args.command == "gui" or not getattr(args, "cli", False):
+            from mxd_bot.gui import run_gui
+
+            runtime_config = deepcopy(config)
+            if getattr(args, "device", None):
+                runtime_config["model"]["device"] = args.device
+            if args.command == "run":
+                dry_run = True if args.dry_run else False if args.live else None
+                if dry_run is not None:
+                    runtime_config["behavior"]["dry_run"] = dry_run
+                if args.profile:
+                    if args.profile not in runtime_config["profiles"]:
+                        available = ", ".join(runtime_config["profiles"])
+                        raise ValueError(f"未知职业配置 {args.profile!r}，可选：{available}")
+                    runtime_config["behavior"]["profile"] = args.profile
+            run_gui(runtime_config)
+            return
+
         dry_run = True if args.dry_run else False if args.live else None
         runtime_config = apply_overrides(config, args.profile, dry_run)
         if getattr(args, "device", None):
