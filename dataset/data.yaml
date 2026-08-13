@@ -1,10 +1,10 @@
-# 目录结构：
-# dataset/images/train、dataset/images/val
-# dataset/labels/train、dataset/labels/val
+# 从 Roboflow maplestory_monster 导入。
+# 标签数字 ID 保持 Roboflow 原样：0=怪，1=人。
+# 显示名把 monster 映射成 mob，方便和 config.yaml 对齐。
 path: .
 train: images/train
 val: images/val
 
 names:
-  0: player
-  1: mob
+  0: mob
+  1: player

@@ -54,6 +54,21 @@ C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run --profile war
 
 重要：仓库里如果已有 `models/best.pt`，也可能只是合成色块冒烟模型，**不能直接认游戏怪物**。回家第一件事是采真实截图并重新训练。
 
+### 已下载 Roboflow 数据集时
+
+如果 ZIP 解压到了 `models/maplestory_monster.v10i.yolov11`：
+
+```powershell
+C:\mxd-venv\Scripts\python.exe scripts\import_roboflow_yolo.py
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train
+```
+
+导入脚本会：
+
+1. 把 `train/valid` 拷进本仓库 `dataset/`；
+2. 把 Roboflow 的多边形标签转成检测框；
+3. 把类别显示名 `monster` 映射成项目里的 `mob`（标签数字 ID 不变：0=怪，1=人）。
+
 ## 项目结构
 
 ```text
@@ -97,15 +112,40 @@ C:\mxd-venv\Scripts\Activate.ps1
 C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml --help
 ```
 
-### NVIDIA GPU（可选）
+### NVIDIA GPU（推荐）
 
-Ultralytics 会使用已安装的 PyTorch。先运行以下命令确认：
+默认配置 `device: auto`：有 NVIDIA CUDA 就用显卡，没有就回退 CPU。
+
+检查设备：
 
 ```powershell
-python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+C:\mxd-venv\Scripts\python.exe -m mxd_bot doctor
 ```
 
-显示 `False` 时仍可在 CPU 上运行，但训练和实时推理会慢。需要 CUDA 时，应按 [PyTorch 官方安装页](https://pytorch.org/get-started/locally/) 安装与驱动匹配的版本，不要随意复制未知 CUDA 命令。
+如果显示 CPU / `cuda=unavailable`，在虚拟环境中安装 CUDA 版 PyTorch（本机已验证 `cu124` + GTX 1660 SUPER）：
+
+```powershell
+C:\mxd-venv\Scripts\python.exe -m pip uninstall -y torch torchvision
+C:\mxd-venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+C:\mxd-venv\Scripts\python.exe -m mxd_bot doctor
+```
+
+开关方式：
+
+```yaml
+model:
+  device: auto   # auto | cuda | cpu | 0
+training:
+  device: auto   # 可不写，默认跟随 model.device
+```
+
+命令行临时覆盖：
+
+```powershell
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train --device cuda
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train --device cpu
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run --profile warrior --dry-run --device cuda
+```
 
 ## 2. 修改基础配置
 
@@ -189,8 +229,16 @@ dataset/
 确认数据目录完成后：
 
 ```powershell
-python -m mxd_bot --config config.yaml train
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train
 ```
+
+中途可用 `Ctrl+C` 停止。要接着上次进度续训：
+
+```powershell
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train --resume
+```
+
+续训读取 `runs/mxd_detect/weights/last.pt`。如果这个文件不存在，说明还没有可续的断点，需要先完整开训一次。
 
 默认从 `yolo11n.pt` 迁移学习 100 轮。训练结果在：
 

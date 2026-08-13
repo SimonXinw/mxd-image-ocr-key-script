@@ -7,31 +7,49 @@ from typing import Any
 
 import yaml
 
+from mxd_bot.device import resolve_device
+
 LOGGER = logging.getLogger(__name__)
+DEFAULT_RUN_DIR = Path("runs") / "mxd_detect"
+DEFAULT_LAST_WEIGHTS = DEFAULT_RUN_DIR / "weights" / "last.pt"
 
 
-def train_model(config: dict[str, Any]) -> Path:
+def train_model(config: dict[str, Any], resume: bool = False) -> Path:
     training = config["training"]
-    data_path = Path(training["data"])
-    if not data_path.exists():
-        raise FileNotFoundError(f"找不到数据集配置：{data_path}")
-
-    resolved_data_path = _write_resolved_dataset_config(data_path)
-    _ensure_dataset_images(resolved_data_path)
+    device = resolve_device(training.get("device", config["model"].get("device", "auto")))
 
     from ultralytics import YOLO
 
-    model = YOLO(str(training["base_model"]))
-    results = model.train(
-        data=str(resolved_data_path),
-        epochs=int(training["epochs"]),
-        imgsz=int(training["image_size"]),
-        batch=int(training["batch"]),
-        workers=int(training["workers"]),
-        project=str(Path("runs").resolve()),
-        name="mxd_detect",
-        exist_ok=True,
-    )
+    if resume:
+        last_weights = Path(training.get("resume_weights", DEFAULT_LAST_WEIGHTS))
+        if not last_weights.exists():
+            raise FileNotFoundError(
+                f"找不到续训权重：{last_weights}。请先完整训练一次，或确认上次中断后已生成 last.pt。"
+            )
+        LOGGER.info("从断点续训：%s", last_weights)
+        model = YOLO(str(last_weights))
+        results = model.train(resume=True, device=device)
+    else:
+        data_path = Path(training["data"])
+        if not data_path.exists():
+            raise FileNotFoundError(f"找不到数据集配置：{data_path}")
+
+        resolved_data_path = _write_resolved_dataset_config(data_path)
+        _ensure_dataset_images(resolved_data_path)
+
+        LOGGER.info("开始新训练，base_model=%s", training["base_model"])
+        model = YOLO(str(training["base_model"]))
+        results = model.train(
+            data=str(resolved_data_path),
+            epochs=int(training["epochs"]),
+            imgsz=int(training["image_size"]),
+            batch=int(training["batch"]),
+            workers=int(training["workers"]),
+            project=str(Path("runs").resolve()),
+            name="mxd_detect",
+            exist_ok=True,
+            device=device,
+        )
 
     source_weights = Path(results.save_dir) / "weights" / "best.pt"
     if not source_weights.exists():

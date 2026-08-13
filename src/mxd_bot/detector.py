@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from mxd_bot.device import resolve_device
 from mxd_bot.types import Box
 
 
@@ -21,7 +22,7 @@ class YoloDetector:
         self.model = YOLO(str(weights))
         self.confidence = float(model_config["confidence"])
         self.image_size = int(model_config["image_size"])
-        self.device = model_config.get("device")
+        self.device = resolve_device(model_config.get("device", "auto"))
 
     def detect(self, frame: np.ndarray) -> list[Box]:
         results = self.model.predict(

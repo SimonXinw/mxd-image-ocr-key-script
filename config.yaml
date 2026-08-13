@@ -1,0 +1,59 @@
+window:
+  title_contains: MapleStory
+  capture_region: null
+model:
+  weights: models/best.pt
+  confidence: 0.55
+  image_size: 640
+  device: auto
+  monster_classes:
+  - mob
+  player_class: player
+player:
+  locator: hybrid
+  name_template: assets/player_name.png
+  template_threshold: 0.82
+  template_center_offset:
+  - 0
+  - -55
+behavior:
+  profile: warrior
+  dry_run: true
+  startup_delay_seconds: 3
+  loop_interval_seconds: 0.03
+  target_vertical_tolerance: 110
+  move_pulse_seconds: 0.1
+  patrol_pulse_seconds: 0.35
+  patrol_switch_seconds: 2.5
+  jump_when_target_above_pixels: 45
+  jump_cooldown_seconds: 1.2
+  debug_window: true
+profiles:
+  warrior:
+    attack_key: ctrl
+    jump_key: alt
+    attack_range_pixels: 150
+    attack_cooldown_seconds: 0.48
+    buffs:
+    - key: f1
+      interval_seconds: 180
+  priest:
+    attack_key: ctrl
+    jump_key: alt
+    attack_range_pixels: 180
+    attack_cooldown_seconds: 0.75
+    buffs:
+    - key: f1
+      interval_seconds: 180
+collection:
+  output_dir: captures
+  interval_seconds: 0.35
+training:
+  base_model: yolo11n.pt
+  data: dataset/data.yaml
+  epochs: 100
+  image_size: 640
+  batch: 8
+  workers: 4
+  device: auto
+  resume_weights: runs/mxd_detect/weights/last.pt

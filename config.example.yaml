@@ -7,7 +7,8 @@ model:
   weights: "models/best.pt"
   confidence: 0.55
   image_size: 640
-  device: null
+  # auto：优先 NVIDIA CUDA，检测不到则 CPU；也可写 cuda / cpu / 0
+  device: auto
   monster_classes: ["mob"]
   player_class: "player"
 
@@ -61,3 +62,7 @@ training:
   image_size: 640
   batch: 8
   workers: 4
+  # 不写则跟随 model.device；可单独写成 auto / cuda / cpu / 0
+  device: auto
+  # 续训默认读取这个权重：runs/mxd_detect/weights/last.pt
+  resume_weights: "runs/mxd_detect/weights/last.pt"

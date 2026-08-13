@@ -5,11 +5,10 @@ __pycache__/
 .ruff_cache/
 runs/
 datasets/
-models/*.pt
 models/*.onnx
+models/maplestory_monster*/
 yolo11n.pt
 captures/*.png
-config.yaml
 config.smoke.yaml
 dataset/images/
 dataset/labels/
