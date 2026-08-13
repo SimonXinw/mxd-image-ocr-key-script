@@ -21,7 +21,13 @@ def annotate_frame(
         if box.class_name == "player":
             continue
 
-        _draw_box(canvas, box, (0, 0, 255), f"YOLO mob {box.confidence:.2f}")
+        track_label = f" #{box.track_id}" if box.track_id is not None else ""
+        _draw_box(
+            canvas,
+            box,
+            (0, 0, 255),
+            f"YOLO mob{track_label} {box.confidence:.2f}",
+        )
 
     if player is not None:
         player_color, source_label = _player_style(player.source)

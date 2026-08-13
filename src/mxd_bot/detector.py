@@ -23,15 +23,25 @@ class YoloDetector:
         self.confidence = float(model_config["confidence"])
         self.image_size = int(model_config["image_size"])
         self.device = resolve_device(model_config.get("device", "auto"))
+        self.tracking_enabled = bool(model_config.get("tracking_enabled", True))
+        self.tracker = str(model_config.get("tracker", "bytetrack.yaml"))
 
     def detect(self, frame: np.ndarray) -> list[Box]:
-        results = self.model.predict(
-            source=frame,
-            conf=self.confidence,
-            imgsz=self.image_size,
-            device=self.device,
-            verbose=False,
-        )
+        predict_options = {
+            "source": frame,
+            "conf": self.confidence,
+            "imgsz": self.image_size,
+            "device": self.device,
+            "verbose": False,
+        }
+        if self.tracking_enabled:
+            results = self.model.track(
+                **predict_options,
+                persist=True,
+                tracker=self.tracker,
+            )
+        else:
+            results = self.model.predict(**predict_options)
         result = results[0]
         names = result.names
         detections: list[Box] = []
@@ -39,6 +49,11 @@ class YoloDetector:
         for raw_box in result.boxes:
             class_id = int(raw_box.cls.item())
             left, top, right, bottom = raw_box.xyxy[0].tolist()
+            track_id = (
+                int(raw_box.id.item())
+                if raw_box.id is not None
+                else None
+            )
             detections.append(
                 Box(
                     class_name=str(names[class_id]),
@@ -48,6 +63,7 @@ class YoloDetector:
                     right=round(right),
                     bottom=round(bottom),
                     source="yolo",
+                    track_id=track_id,
                 )
             )
 

@@ -13,6 +13,7 @@ class Box:
     right: int
     bottom: int
     source: str = "unknown"
+    track_id: int | None = None
 
     @property
     def center(self) -> tuple[int, int]:

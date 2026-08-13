@@ -34,6 +34,8 @@ def run_bot(config: dict[str, Any]) -> None:
         config["window"].get("capture_region"),
     )
     LOGGER.info(capture.describe())
+    if capture.last_info is not None:
+        controller.set_target_window(capture.last_info.hwnd)
 
     LOGGER.info(
         "职业=%s，dry_run=%s，conf=%s；F8 暂停/继续，F9 或 Ctrl+C 退出",

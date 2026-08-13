@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import queue
 import time
 from copy import deepcopy
 from typing import Any
@@ -29,12 +30,16 @@ class BotWorker(QThread):
         self._running = False
         self._paused = False
         self._stop_requested = False
+        self._manual_keys: queue.SimpleQueue[str] = queue.SimpleQueue()
 
     def request_stop(self) -> None:
         self._stop_requested = True
 
     def set_paused(self, paused: bool) -> None:
         self._paused = paused
+
+    def request_key(self, key_name: str) -> None:
+        self._manual_keys.put(key_name)
 
     def run(self) -> None:
         config = self._config
@@ -44,6 +49,8 @@ class BotWorker(QThread):
         monster_classes = set(config["model"]["monster_classes"])
         target_fps = float(config.get("ui", {}).get("target_fps", 30))
         frame_interval = 1.0 / max(1.0, target_fps)
+        preview_fps = float(config.get("ui", {}).get("preview_fps", 15))
+        preview_interval = 1.0 / max(1.0, preview_fps)
 
         detector: YoloDetector | None = None
         controller: InputController | None = None
@@ -60,16 +67,21 @@ class BotWorker(QThread):
                 config["window"].get("capture_region"),
             )
             self._emit_log(capture.describe())
+            if capture.last_info is not None:
+                controller.set_target_window(capture.last_info.hwnd)
 
             self._running = True
             self._emit_log(
                 f"已启动：profile={profile_name}, dry_run={behavior['dry_run']}, "
-                f"target_fps={target_fps:.0f}, conf={config['model']['confidence']}"
+                f"auto_attack={behavior.get('auto_attack_enabled', True)}, "
+                f"target_fps={target_fps:.0f}, preview_fps={preview_fps:.0f}, "
+                f"conf={config['model']['confidence']}"
             )
 
             last_frame_at = time.monotonic()
             fps = 0.0
             last_diag_at = 0.0
+            last_preview_at = 0.0
 
             while not self._stop_requested:
                 loop_started = time.monotonic()
@@ -95,6 +107,8 @@ class BotWorker(QThread):
                     )
 
                 if not self._paused:
+                    while not self._manual_keys.empty():
+                        controller.press_configured_key(self._manual_keys.get_nowait())
                     controller.execute(decision)
                     controller.cast_due_buffs()
                 else:
@@ -106,15 +120,17 @@ class BotWorker(QThread):
                     fps = fps * 0.9 + (1 / elapsed) * 0.1
                 last_frame_at = now
 
-                annotated = annotate_frame(
-                    frame,
-                    detections,
-                    player,
-                    decision,
-                    fps,
-                    self._paused,
-                )
-                self.frame_ready.emit(bgr_to_rgb(annotated))
+                if now - last_preview_at >= preview_interval:
+                    last_preview_at = now
+                    annotated = annotate_frame(
+                        frame,
+                        detections,
+                        player,
+                        decision,
+                        fps,
+                        self._paused,
+                    )
+                    self.frame_ready.emit(bgr_to_rgb(annotated))
                 self.status_ready.emit(
                     {
                         "fps": round(fps, 1),
@@ -123,6 +139,7 @@ class BotWorker(QThread):
                         "monsters": len(monsters),
                         "has_player": player is not None,
                         "dry_run": bool(behavior["dry_run"]),
+                        "auto_attack": bool(behavior.get("auto_attack_enabled", True)),
                         "profile": profile_name,
                     }
                 )

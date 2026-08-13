@@ -11,6 +11,8 @@ model:
   image_size: 640
   # auto：优先 NVIDIA CUDA，检测不到则 CPU；也可写 cuda / cpu / 0
   device: auto
+  tracking_enabled: true
+  tracker: "bytetrack.yaml"
   monster_classes: ["mob"]
   player_class: "player"
 
@@ -21,15 +23,27 @@ player:
   template_threshold: 0.82
   # 找不到人时是否用画面中心当作角色（镜头跟角色时可用）
   fallback_to_frame_center: true
+  # 名字搜索：水平全宽，垂直只取中间 40%
+  search_center_x_ratio: 1.0
+  search_center_y_ratio: 0.40
   # 名字通常在角色下方，因此从名字模板中心向上偏移。
   template_center_offset: [0, -55]
 
 behavior:
   profile: "warrior"
   dry_run: true
+  # 独立控制目标进入攻击范围时是否自动按攻击键。
+  auto_attack_enabled: true
   startup_delay_seconds: 3
   loop_interval_seconds: 0.03
-  target_vertical_tolerance: 110
+  target_vertical_tolerance: 140
+  # 先选最近怪并锁定，避免每帧换目标导致左右抖动。
+  target_match_radius_pixels: 120
+  target_lost_grace_seconds: 0.7
+  max_chase_horizontal_pixels: 420
+  target_acquire_frames: 2
+  attack_release_margin_pixels: 40
+  action_confirm_frames: 2
   move_pulse_seconds: 0.10
   patrol_pulse_seconds: 0.35
   patrol_switch_seconds: 2.5
@@ -38,21 +52,35 @@ behavior:
   debug_window: true
 
 ui:
-  # GUI 预览目标帧率。1660S 建议 30；2080 Super 可试 60。
+  # 识别/决策循环上限；实际帧率仍受 YOLO 推理耗时限制。
   target_fps: 30
+  # 只限制画面上屏，不影响识别/决策频率。
+  preview_fps: 15
 
 profiles:
   warrior:
     attack_key: "ctrl"
     jump_key: "alt"
-    attack_range_pixels: 150
-    attack_cooldown_seconds: 0.48
+    left_key: "left"
+    right_key: "right"
+    up_key: "up"
+    down_key: "down"
+    hp_potion_key: "1"
+    mp_potion_key: "2"
+    attack_range_pixels: 220
+    attack_cooldown_seconds: 0.40
     buffs:
       - key: "f1"
         interval_seconds: 180
   priest:
     attack_key: "ctrl"
     jump_key: "alt"
+    left_key: "left"
+    right_key: "right"
+    up_key: "up"
+    down_key: "down"
+    hp_potion_key: "1"
+    mp_potion_key: "2"
     attack_range_pixels: 180
     attack_cooldown_seconds: 0.75
     buffs:
