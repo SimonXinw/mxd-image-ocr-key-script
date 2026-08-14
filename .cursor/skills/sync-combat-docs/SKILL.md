@@ -27,6 +27,7 @@ disable-model-invocation: true
 必读：
 
 - `src/mxd_bot/decision.py` — `decide()`、`_select_target()`、`_match_locked_target()`、`_stabilize_action()`
+- `src/mxd_bot/types.py` — `Box` 的中心 / 脚底坐标语义和 `ActionType`
 - `src/mxd_bot/input_controller.py` — `execute()` 及方向键长按、冷却
 - `src/mxd_bot/player_locator.py` — 定位优先级和搜索区域
 - `config.yaml` — 程序实际读取的正式配置，已入库，**参数取值以它为准**

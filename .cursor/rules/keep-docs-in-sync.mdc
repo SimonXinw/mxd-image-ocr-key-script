@@ -1,6 +1,6 @@
 ---
 description: 改动打怪核心逻辑或配置后，同步 docs/combat-flow.md 与 CHANGELOG.md
-globs: src/mxd_bot/decision.py,src/mxd_bot/input_controller.py,src/mxd_bot/player_locator.py,src/mxd_bot/detector.py,src/mxd_bot/capture.py,config.yaml,config.example.yaml
+globs: src/mxd_bot/types.py,src/mxd_bot/decision.py,src/mxd_bot/input_controller.py,src/mxd_bot/player_locator.py,src/mxd_bot/detector.py,src/mxd_bot/capture.py,config.yaml,config.example.yaml
 alwaysApply: false
 ---
 
@@ -13,6 +13,7 @@ alwaysApply: false
 只要本轮会话**实际修改**了以下任意一项，就必须同步：
 
 - `decision.py`：选目标、动作判定、防抖
+- `types.py`：检测框坐标语义、动作类型
 - `input_controller.py`：按键发送方式、长按/冷却策略
 - `player_locator.py` / `detector.py` / `capture.py`：定位或识别链路
 - `config.yaml`：任何 `behavior`、`profiles`、`model`、`player`、`ui` 参数（这份是程序实际读取的正式配置，已入库）

@@ -65,8 +65,8 @@ class DecisionEngine:
             action = self._stabilize_action(self._patrol_action(current_time))
             return Decision(action)
 
-        player_x, player_y = player.center
-        target_x, target_y = target.center
+        player_x, player_y = player.ground_point
+        target_x, target_y = target.ground_point
         horizontal_distance = target_x - player_x
         vertical_distance = target_y - player_y
         abs_dx = abs(horizontal_distance)
@@ -151,12 +151,12 @@ class DecisionEngine:
         monsters: list[Box],
         now: float,
     ) -> Box | None:
-        player_x, player_y = player.center
+        player_x, player_y = player.ground_point
         reachable = [
             monster
             for monster in monsters
-            if abs(monster.center[1] - player_y) <= self.vertical_tolerance
-            and abs(monster.center[0] - player_x) <= self.max_chase_horizontal
+            if abs(monster.ground_point[1] - player_y) <= self.vertical_tolerance
+            and abs(monster.ground_point[0] - player_x) <= self.max_chase_horizontal
         ]
 
         if self._locked_target is not None:
@@ -178,8 +178,8 @@ class DecisionEngine:
         nearest = min(
             reachable,
             key=lambda monster: (
-                abs(monster.center[0] - player_x)
-                + 2 * abs(monster.center[1] - player_y)
+                abs(monster.ground_point[0] - player_x)
+                + 2 * abs(monster.ground_point[1] - player_y)
             ),
         )
 
@@ -216,17 +216,17 @@ class DecisionEngine:
         if not candidates:
             return None
 
-        locked_x, locked_y = self._locked_target.center
+        locked_x, locked_y = self._locked_target.ground_point
         matched = min(
             candidates,
             key=lambda monster: (
-                abs(monster.center[0] - locked_x)
-                + abs(monster.center[1] - locked_y)
+                abs(monster.ground_point[0] - locked_x)
+                + abs(monster.ground_point[1] - locked_y)
             ),
         )
         distance = (
-            abs(matched.center[0] - locked_x)
-            + abs(matched.center[1] - locked_y)
+            abs(matched.ground_point[0] - locked_x)
+            + abs(matched.ground_point[1] - locked_y)
         )
         return matched if distance <= self.target_match_radius else None
 
@@ -236,9 +236,10 @@ class DecisionEngine:
         if target.track_id is not None and self._candidate_target.track_id is not None:
             return target.track_id == self._candidate_target.track_id
 
-        old_x, old_y = self._candidate_target.center
+        old_x, old_y = self._candidate_target.ground_point
         return (
-            abs(target.center[0] - old_x) + abs(target.center[1] - old_y)
+            abs(target.ground_point[0] - old_x)
+            + abs(target.ground_point[1] - old_y)
             <= self.target_match_radius
         )
 

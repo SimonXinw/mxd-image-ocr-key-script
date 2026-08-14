@@ -35,6 +35,7 @@ behavior:
   auto_attack_enabled: true
   startup_delay_seconds: 3
   loop_interval_seconds: 0.03
+  # 怪物与人物脚底（框 bottom）的最大高度差；超过时视为不可达。
   target_vertical_tolerance: 140
   # 先选择最近怪，再持续锁定它；避免检测框抖动时左右换目标。
   target_match_radius_pixels: 120
@@ -50,6 +51,7 @@ behavior:
   move_pulse_seconds: 0.10
   patrol_pulse_seconds: 0.35
   patrol_switch_seconds: 2.5
+  # 怪物脚底比人物脚底高出多少像素，且还不在攻击范围时，触发朝目标跳跃。
   jump_when_target_above_pixels: 45
   jump_cooldown_seconds: 1.2
   debug_window: true

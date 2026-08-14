@@ -19,6 +19,11 @@ class Box:
     def center(self) -> tuple[int, int]:
         return ((self.left + self.right) // 2, (self.top + self.bottom) // 2)
 
+    @property
+    def ground_point(self) -> tuple[int, int]:
+        """返回目标脚底中心，供平台高度和移动方向判断使用。"""
+        return ((self.left + self.right) // 2, self.bottom)
+
 
 class ActionType(str, Enum):
     IDLE = "idle"

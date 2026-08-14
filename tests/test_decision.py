@@ -32,6 +32,23 @@ def make_box(class_name: str, center_x: int, center_y: int) -> Box:
     )
 
 
+def make_grounded_box(
+    class_name: str,
+    center_x: int,
+    bottom: int,
+    height: int,
+) -> Box:
+    """构造不同高度但脚底位置可控的检测框。"""
+    return Box(
+        class_name=class_name,
+        confidence=0.9,
+        left=center_x - 10,
+        top=bottom - height,
+        right=center_x + 10,
+        bottom=bottom,
+    )
+
+
 def feed(engine, player, monsters, frames):
     """连续喂同一画面若干帧，返回最后一帧的决策。"""
     decision = engine.decide(player, monsters)
@@ -74,6 +91,28 @@ class DecisionEngineTest(unittest.TestCase):
         decision = feed(engine, player, [make_box("mob", 300, 90)], FRAMES_TO_MOVE)
 
         self.assertEqual(decision.action, ActionType.JUMP_RIGHT)
+
+    def test_attacks_same_platform_monster_with_different_height(self) -> None:
+        """同一脚底高度不能因怪物框更高而被误判为上层。"""
+        engine = DecisionEngine(BEHAVIOR, PROFILE)
+        player = make_grounded_box("player", 100, bottom=200, height=70)
+        tall_monster = make_grounded_box("mob", 220, bottom=200, height=340)
+
+        decision = feed(engine, player, [tall_monster], FRAMES_TO_LOCK)
+
+        self.assertEqual(decision.action, ActionType.ATTACK)
+        self.assertEqual(decision.vertical_distance, 0)
+
+    def test_jumps_by_ground_height_with_different_box_heights(self) -> None:
+        """是否在上层按脚底高度判断，不受角色和怪物框高度影响。"""
+        engine = DecisionEngine(BEHAVIOR, PROFILE)
+        player = make_grounded_box("player", 100, bottom=200, height=70)
+        tall_monster = make_grounded_box("mob", 300, bottom=130, height=220)
+
+        decision = feed(engine, player, [tall_monster], FRAMES_TO_MOVE)
+
+        self.assertEqual(decision.action, ActionType.JUMP_RIGHT)
+        self.assertEqual(decision.vertical_distance, -70)
 
     def test_idles_when_monster_outside_vertical_tolerance(self) -> None:
         """有怪但够不着时站着不动，不要退回巡逻乱跑。"""

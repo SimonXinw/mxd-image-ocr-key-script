@@ -15,7 +15,24 @@
 | YOLO 检测类 | 2 | `mob`、`player`（见 `dataset/data.yaml`） |
 | 决策动作类 | 8 | `idle`、`move_left`、`move_right`、`attack`、`jump_left`、`jump_right`、`patrol_left`、`patrol_right` |
 
-距离一律用检测框的**中心点**算（`Box.center`），不是脚底 `bottom`。人和怪框高不同时，中心差和脚底差会有偏差；当前已按中心点调通，暂不改成脚底，避免整套竖直阈值失效。
+当前模型仍然只有 2 个检测类。完整的平台寻路下一阶段建议扩成 4 类：
+
+| 建议检测类 | 用途 |
+| --- | --- |
+| `mob` | 选怪、攻击 |
+| `player` | 玩家定位回退 |
+| `platform` | 判断人物和怪物是否在同一层、平台边缘及落脚点 |
+| `ladder` | 找梯子位置和上下端点 |
+
+`up`（上箭头）是**动作**，不是画面中的物体，因此不应做成 YOLO 分类。等 `platform` / `ladder` 有真实标注并重训模型后，再增加 `climb_up` / `climb_down` 决策动作。现在只改 `dataset/data.yaml` 或增加空动作，会破坏现有权重的类别映射且永远不会触发，所以暂不添加。
+
+距离坐标约定：
+
+- 水平位置使用框中心 X；
+- 竖直层级使用脚底 Y（`Box.ground_point = (center_x, bottom)`）；
+- `dy = 怪脚底Y - 人脚底Y`，画面 Y 向下为正，因此 `dy < 0` 表示怪在更高的平台。
+
+脚底比中心点更适合平台游戏：高矮不同的怪站在同一地面时，框中心不同，但框底应接近同一平台高度。
 
 ## 完整流程图
 
@@ -70,7 +87,7 @@ flowchart TD
     F4 --> K
     J --> K
 
-    K["计算中心点距离<br/>dx = 怪中心x - 人中心x<br/>dy = 怪中心y - 人中心y<br/>画面 Y 向下为正"]
+    K["计算地面锚点距离<br/>dx = 怪脚底中心x - 人脚底中心x<br/>dy = 怪bottom - 人bottom<br/>画面 Y 向下为正"]
     K --> L{上一帧在攻击?}
     L -->|是| L1[attack_limit =<br/>attack_range + attack_release_margin]
     L -->|否| L2[attack_limit = attack_range]
@@ -137,7 +154,7 @@ flowchart TD
 
 | 参数 | 当前值 | 作用 | 什么时候调 |
 | --- | --- | --- | --- |
-| `target_vertical_tolerance` | 140 | 竖直距离超过它的怪直接忽略 | 老追上层平台的怪就调小；同层怪不打就调大 |
+| `target_vertical_tolerance` | 140 | 脚底竖直距离超过它的怪直接忽略 | 老追上层平台的怪就调小；同层怪不打就调大 |
 | `max_chase_horizontal_pixels` | 420 | 横向超过它的怪不追 | 人物被远处误检拉走就调小 |
 | `target_acquire_frames` | 2 | 新目标要连续出现几帧才锁定 | 一闪而过的误检导致乱走就调大 |
 | `target_match_radius_pixels` | 120 | 没有 track_id 时，靠位置判定"还是同一只怪" | 怪移动快导致频繁换目标就调大 |
@@ -151,7 +168,7 @@ flowchart TD
 | `attack_release_margin_pixels` | 40 | 已在攻击时上限放宽到 180+40=220，防止边界走停抖动 | 在攻击边界反复走走停停就调大 |
 | `attack_cooldown_seconds` | 0.40 | 两次攻击最小间隔 | 按技能实际后摇调整 |
 | `action_confirm_frames` | 2 | 非攻击动作要连续几帧才切换 | 左右横跳就调大；反应迟钝就调小 |
-| `jump_when_target_above_pixels` | 45 | 怪中心比人中心高出这么多像素才考虑跳（不是脚底差） | 乱跳就调大；该跳不跳就调小 |
+| `jump_when_target_above_pixels` | 45 | 怪脚底比人脚底高出这么多像素才考虑跳 | 乱跳就调大；该跳不跳就调小 |
 | `patrol_switch_seconds` | 2.5 | 无怪巡逻时左右换向周期 | 巡逻太碎就调大 |
 | `auto_attack_enabled` | true | 自动攻击总开关，独立于演练模式 | GUI 上有同名勾选框 |
 | `dry_run` | true | 只识别不发按键 | GUI「仅预览」勾选框 |
@@ -194,16 +211,17 @@ flowchart TD
 - 只处理同层或略高平台的怪，没有绳梯、传送点、小地图寻路。
 - 没有自动补药、死亡恢复、掉落拾取。
 - 巡逻仅在**完全无怪**时启动：固定周期左右横向来回，不认识地图边缘。画面有怪但都不可达时是 `idle`，不会去巡逻。
-- 竖直判定用框中心，不是脚底；人和怪框高度差大时，可能误判同层 / 上层。
+- 竖直判定已改用脚底；但没有 `platform` / `ladder` 类时，只能估算层级，不能规划跨层路线。
+- 飞行怪、框底没有贴住地面的目标不适合用脚底判断，后续可为这类怪单独分类或增加移动类型属性。
 - 玩家定位依赖名字模板，改分辨率 / 字体缩放 / 改名后必须重截 `assets/player_name.png`。
 
-## 常见误解（已核对，故意不改代码）
+## 常见判定说明
 
 1. **「攻击范围 180～220，小于 180 就不打？」**  
    否。条件是 `abs(dx) ≤ attack_limit`，贴脸也会打。180 是上限，220 只是「已经在打」时的迟滞上限。
 
 2. **「跳跃按怪物底部和人物底部的高度差？」**  
-   否。现在按中心点 `dy`。改成脚底要重调 `jump_when_target_above_pixels` 和 `target_vertical_tolerance`，当前测试已通，**暂不改**。
+   是。现在按 `monster.bottom - player.bottom`；不同高度的怪站在同一平台时不会再因框中心不同而误判。
 
 3. **「有怪够不着也会巡逻？」**  
    否。够不着就 `idle`；只有一只怪都没有才左右巡逻。
