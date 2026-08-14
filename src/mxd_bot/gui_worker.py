@@ -140,6 +140,7 @@ class BotWorker(QThread):
                         "has_player": player is not None,
                         "dry_run": bool(behavior["dry_run"]),
                         "auto_attack": bool(behavior.get("auto_attack_enabled", True)),
+                        "input_suspended": controller.input_suspended,
                         "profile": profile_name,
                     }
                 )
@@ -149,7 +150,7 @@ class BotWorker(QThread):
                     time.sleep(sleep_for)
         except WindowNotFoundError as exc:
             self.failed.emit(str(exc))
-        except Exception as exc:  # noqa: BLE001 - 需要把异常送回 GUI
+        except Exception as exc:
             LOGGER.exception("GUI worker failed")
             self.failed.emit(str(exc))
         finally:

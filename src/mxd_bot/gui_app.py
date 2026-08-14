@@ -381,6 +381,8 @@ class MainWindow(QMainWindow):
         mode += " / 攻开" if status.get("auto_attack") else " / 攻关"
         if status.get("paused"):
             mode += " / 暂停"
+        elif status.get("input_suspended"):
+            mode += " / 后台停键"
         self.mode_label.setText(f"{status.get('profile', '-')} | {mode}")
 
     def _on_failed(self, message: str) -> None:
@@ -404,7 +406,7 @@ class MainWindow(QMainWindow):
         self.log_view.append(message)
         self.log_view.moveCursor(QTextCursor.MoveOperation.End)
 
-    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
+    def closeEvent(self, event) -> None:
         if self._worker is not None and self._worker.isRunning():
             self._worker.request_stop()
             self._worker.wait(3000)

@@ -111,7 +111,11 @@ class MouseInput(ctypes.Structure):
 
 
 class InputUnion(ctypes.Union):
-    _fields_ = [("ki", KeyBdInput), ("mi", MouseInput), ("hi", HardwareInput)]
+    _fields_ = [  # noqa: RUF012 - ctypes 要求 _fields_ 是类级可变列表
+        ("ki", KeyBdInput),
+        ("mi", MouseInput),
+        ("hi", HardwareInput),
+    ]
 
 
 class Input(ctypes.Structure):
@@ -141,6 +145,7 @@ class InputController:
         self._target_hwnd: int | None = None
         self._held_direction: str | None = None
         self._numlock_forced_off = False
+        self._background_suspended = False
         self._user32 = ctypes.windll.user32
         self._extra = ctypes.c_ulong(0)
         self._ready = True
@@ -172,6 +177,10 @@ class InputController:
     def set_target_window(self, hwnd: int) -> None:
         self._target_hwnd = hwnd
 
+    @property
+    def input_suspended(self) -> bool:
+        return self._background_suspended
+
     def execute(self, decision: Decision) -> None:
         now = time.monotonic()
         action = decision.action
@@ -185,6 +194,9 @@ class InputController:
                     decision.vertical_distance,
                 )
                 self._last_dry_action = action
+            return
+
+        if not self._allow_game_input():
             return
 
         if action == ActionType.ATTACK:
@@ -223,6 +235,10 @@ class InputController:
             LOGGER.warning("未知手动按键动作：%s", key_name)
             return
 
+        if not self._allow_game_input():
+            LOGGER.warning("[手动测试] 游戏不在前台，未发送=%s", key_name)
+            return
+
         self._ready = True
         if key in MOVE_KEYS:
             self._hold(key, max(0.12, self.move_pulse))
@@ -232,6 +248,9 @@ class InputController:
 
     def cast_due_buffs(self) -> None:
         now = time.monotonic()
+        if not self.dry_run and not self._allow_game_input():
+            return
+
         for buff in self.buffs:
             key = self._normalize_key(buff["key"])
             interval = float(buff["interval_seconds"])
@@ -266,7 +285,6 @@ class InputController:
             return
 
         self._release_direction()
-        self._prepare_game_input()
         self._ensure_numlock_off_for_arrows(key)
         self._key_down(key)
         self._held_direction = key
@@ -282,14 +300,12 @@ class InputController:
         LOGGER.info("持续移动结束 key=%s", key)
 
     def _press(self, key: str) -> None:
-        self._prepare_game_input()
         self._ensure_numlock_off_for_arrows(key)
         self._key_down(key)
         time.sleep(0.03)
         self._key_up(key)
 
     def _hold(self, key: str, duration: float) -> None:
-        self._prepare_game_input()
         self._ensure_numlock_off_for_arrows(key)
         self._key_down(key)
         try:
@@ -298,7 +314,6 @@ class InputController:
             self._key_up(key)
 
     def _jump(self, direction: str) -> None:
-        self._prepare_game_input()
         self._ensure_numlock_off_for_arrows(direction)
         self._key_down(direction)
         try:
@@ -309,19 +324,24 @@ class InputController:
         finally:
             self._key_up(direction)
 
-    def _prepare_game_input(self) -> None:
-        self._focus_target_window()
+    def _allow_game_input(self) -> bool:
+        """只允许向当前前台游戏发送输入，绝不主动抢焦点。"""
+        is_foreground = (
+            self._target_hwnd is not None
+            and self._user32.GetForegroundWindow() == self._target_hwnd
+        )
+        if is_foreground:
+            if self._background_suspended:
+                LOGGER.info("游戏已回到前台，恢复自动按键")
+                self._background_suspended = False
+            return True
 
-    def _focus_target_window(self) -> None:
-        if self._target_hwnd is None:
-            return
-
-        if self._user32.GetForegroundWindow() == self._target_hwnd:
-            return
-
-        self._user32.ShowWindow(self._target_hwnd, 9)
-        self._user32.SetForegroundWindow(self._target_hwnd)
-        time.sleep(0.1)
+        self._release_direction()
+        self._restore_numlock_if_needed()
+        if not self._background_suspended:
+            LOGGER.info("游戏不在前台，已暂停自动按键（识别和预览继续）")
+            self._background_suspended = True
+        return False
 
     def _ensure_numlock_off_for_arrows(self, key: str) -> None:
         """NumLock 开着时模拟方向键会变成小键盘数字；本次运行内只关一次。"""
