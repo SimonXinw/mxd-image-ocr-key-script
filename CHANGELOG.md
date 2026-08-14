@@ -26,6 +26,16 @@
 
 ## 2026-08-14
 
+### chore: 澄清攻击/巡逻/跳跃判定，确认暂不改代码
+
+- 背景：排疑时容易把 `attack_range` + 迟滞理解成「只有 180～220 才打」；跳跃也容易理解成脚底高度差；巡逻触发条件不够直观。
+- 结论（故意不改 `decision.py`）：
+  1. 攻击本就是 `0 ≤ abs(dx) ≤ attack_limit`，贴脸会打，代码正确。
+  2. 竖直距离继续用框中心。改脚底会牵动已调通的 `jump_when_target_above_pixels=45` 和 `target_vertical_tolerance=140`，等出现明显「同层误判」再改。
+  3. 巡逻继续只在完全无怪时启动；有怪不可达保持 `idle`。
+- 做法：更新 `docs/combat-flow.md`——补检测类/动作类表、流程图节点写明「贴脸也算」「无怪才巡逻」「中心点距离」、参数表改写攻击与跳跃含义、增加「常见误解」三节。
+- 参数：无数值变动。
+
 ### chore: 明确 config.yaml 为正式配置，example 降级为参数说明书
 
 - 背景：README 一直把 `config.yaml` 描述成"本地文件、需要从 example 复制"，但它其实早就入库了，导致文档里出现「以 example 数值为准」这种错误约定。两份文件也已经漂移（`confidence` 0.25/0.45、warrior `attack_range_pixels` 220/180、`template_center_offset` -55/-49）。

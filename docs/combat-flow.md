@@ -8,6 +8,15 @@
 
 每帧抓一次游戏窗口画面 → YOLO + ByteTrack 找人和怪 → 选出一个**锁定目标** → 按横纵距离决定攻击 / 移动 / 跳跃 / 巡逻 → 动作经过防抖后才发给键盘。
 
+## 检测类与动作类
+
+| 层 | 个数 | 内容 |
+| --- | --- | --- |
+| YOLO 检测类 | 2 | `mob`、`player`（见 `dataset/data.yaml`） |
+| 决策动作类 | 8 | `idle`、`move_left`、`move_right`、`attack`、`jump_left`、`jump_right`、`patrol_left`、`patrol_right` |
+
+距离一律用检测框的**中心点**算（`Box.center`），不是脚底 `bottom`。人和怪框高不同时，中心差和脚底差会有偏差；当前已按中心点调通，暂不改成脚底，避免整套竖直阈值失效。
+
 ## 完整流程图
 
 复制下面代码块的内容，粘贴到 [mermaid.live](https://mermaid.live) 即可生成图片。
@@ -44,9 +53,9 @@ flowchart TD
     F5 --> G
 
     G{可达怪列表为空?}
-    G -->|是| H{画面里有怪<br/>但都不可达?}
+    G -->|是| H{画面里还有怪<br/>只是都够不着?}
     H -->|是| Z1
-    H -->|否| Z2[巡逻:<br/>每 patrol_switch_seconds 换向]
+    H -->|否| Z2[无怪才巡逻:<br/>每 patrol_switch_seconds<br/>左右换向长按]
 
     G -->|否| I["取最近怪<br/>代价 = abs(dx) + 2 × abs(dy)"]
     I --> I1{与上帧候选是同一只?<br/>track_id 或 距离 ≤ target_match_radius}
@@ -61,7 +70,7 @@ flowchart TD
     F4 --> K
     J --> K
 
-    K[计算 dx = 怪x - 人x<br/>dy = 怪y - 人y]
+    K["计算中心点距离<br/>dx = 怪中心x - 人中心x<br/>dy = 怪中心y - 人中心y<br/>画面 Y 向下为正"]
     K --> L{上一帧在攻击?}
     L -->|是| L1[attack_limit =<br/>attack_range + attack_release_margin]
     L -->|否| L2[attack_limit = attack_range]
@@ -69,12 +78,12 @@ flowchart TD
     L1 --> M
     L2 --> M
 
-    M{"abs(dx) ≤ attack_limit<br/>且 abs(dy) ≤ vertical_tolerance ?"}
+    M{"0 ≤ abs(dx) ≤ attack_limit<br/>且 abs(dy) ≤ vertical_tolerance ?<br/>贴脸也算在范围内"}
     M -->|是| M1{auto_attack_enabled?}
     M1 -->|是| Z3[动作 = ATTACK]
     M1 -->|否| Z1
 
-    M -->|否| N{"怪明显在上方<br/>dy < -jump_when_target_above_pixels<br/>且 abs(dx) > attack_range ?"}
+    M -->|否| N{"怪在上方够高<br/>dy 小于负的 jump_when_target_above_pixels<br/>且 abs(dx) 仍大于 attack_range ?"}
     N -->|是| Z4[动作 = JUMP_LEFT / JUMP_RIGHT]
     N -->|否| O{dx < 0?}
     O -->|是| Z5[动作 = MOVE_LEFT]
@@ -138,11 +147,12 @@ flowchart TD
 
 | 参数 | 当前值 | 作用 | 什么时候调 |
 | --- | --- | --- | --- |
-| `attack_range_pixels` | 180 | 进入这个横向距离就停下来打 | 贴脸挨打就调大；够不到怪就调小 |
-| `attack_release_margin_pixels` | 40 | 已在攻击时额外容忍的距离（迟滞） | 在攻击边界反复走走停停就调大 |
+| `attack_range_pixels` | 180 | 横向 `0～180` 都打（含贴脸）；不是 180～220 才打 | 贴脸挨打就调大；够不到怪就调小 |
+| `attack_release_margin_pixels` | 40 | 已在攻击时上限放宽到 180+40=220，防止边界走停抖动 | 在攻击边界反复走走停停就调大 |
 | `attack_cooldown_seconds` | 0.40 | 两次攻击最小间隔 | 按技能实际后摇调整 |
 | `action_confirm_frames` | 2 | 非攻击动作要连续几帧才切换 | 左右横跳就调大；反应迟钝就调小 |
-| `jump_when_target_above_pixels` | 45 | 怪高出这么多才考虑跳 | 乱跳就调大 |
+| `jump_when_target_above_pixels` | 45 | 怪中心比人中心高出这么多像素才考虑跳（不是脚底差） | 乱跳就调大；该跳不跳就调小 |
+| `patrol_switch_seconds` | 2.5 | 无怪巡逻时左右换向周期 | 巡逻太碎就调大 |
 | `auto_attack_enabled` | true | 自动攻击总开关，独立于演练模式 | GUI 上有同名勾选框 |
 | `dry_run` | true | 只识别不发按键 | GUI「仅预览」勾选框 |
 
@@ -183,5 +193,17 @@ flowchart TD
 
 - 只处理同层或略高平台的怪，没有绳梯、传送点、小地图寻路。
 - 没有自动补药、死亡恢复、掉落拾取。
-- 巡逻是固定周期左右横向来回，不认识地图边缘。
+- 巡逻仅在**完全无怪**时启动：固定周期左右横向来回，不认识地图边缘。画面有怪但都不可达时是 `idle`，不会去巡逻。
+- 竖直判定用框中心，不是脚底；人和怪框高度差大时，可能误判同层 / 上层。
 - 玩家定位依赖名字模板，改分辨率 / 字体缩放 / 改名后必须重截 `assets/player_name.png`。
+
+## 常见误解（已核对，故意不改代码）
+
+1. **「攻击范围 180～220，小于 180 就不打？」**  
+   否。条件是 `abs(dx) ≤ attack_limit`，贴脸也会打。180 是上限，220 只是「已经在打」时的迟滞上限。
+
+2. **「跳跃按怪物底部和人物底部的高度差？」**  
+   否。现在按中心点 `dy`。改成脚底要重调 `jump_when_target_above_pixels` 和 `target_vertical_tolerance`，当前测试已通，**暂不改**。
+
+3. **「有怪够不着也会巡逻？」**  
+   否。够不着就 `idle`；只有一只怪都没有才左右巡逻。
