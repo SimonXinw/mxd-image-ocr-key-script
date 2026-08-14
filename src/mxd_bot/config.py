@@ -11,7 +11,8 @@ def load_config(path: str | Path) -> dict[str, Any]:
     config_path = Path(path)
     if not config_path.exists():
         raise FileNotFoundError(
-            f"找不到配置文件：{config_path}。请先复制 config.example.yaml 为 config.yaml。"
+            f"找不到配置文件：{config_path}。仓库自带 config.yaml，"
+            "被删掉时可用 git restore config.yaml 找回。"
         )
 
     with config_path.open("r", encoding="utf-8") as file:

@@ -21,11 +21,21 @@
   - 默认 `hybrid`：优先名字模板，找不到时回退到 YOLO。
 - 当前只处理附近/同层或略高平台的怪物，不包含完整地图建模、绳梯、传送点、自动补药和死亡恢复。
 
+## 文档导航
+
+| 想知道什么 | 看这里 |
+| --- | --- |
+| 怎么装、怎么跑、怎么训练 | 本文件 |
+| 打怪逻辑到底怎么判定的、参数怎么调 | [`docs/combat-flow.md`](docs/combat-flow.md)（含可直接生成图片的 Mermaid 流程图） |
+| 之前为什么改成现在这样、参数改前改后 | [`CHANGELOG.md`](CHANGELOG.md) |
+
+改了 `decision.py`、`input_controller.py`、`player_locator.py`、`detector.py`、`capture.py` 或配置参数后，要同步更新前两份文档。`.cursor/rules/keep-docs-in-sync.mdc` 会在改到这些文件时自动提醒 AI；想一次性全量核对，让 AI 执行 `.cursor/skills/sync-combat-docs`。
+
 ## 回家测试清单
 
 打开冒险岛后可以开始测，但**不要直接 `--live`**。按这个顺序：
 
-1. 游戏用**窗口模式**，分辨率先固定；确认 `config.yaml` 存在（没有就复制 `config.example.yaml`）。
+1. 游戏用**窗口模式**，分辨率先固定；`config.yaml` 已经在仓库里，直接改它即可。
 2. 把 `window.title_contains` 改成你实际窗口标题里稳定的一段。
 3. 采集截图：
 
@@ -81,8 +91,14 @@ C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train
 
 ```text
 .
-├─ config.example.yaml       # 所有运行参数和战士/牧师配置
+├─ config.yaml               # 程序实际读取的正式配置，已入库，改这份
+├─ config.example.yaml       # 参数说明书：每项的含义和可选值，数值不必与上面一致
+├─ CHANGELOG.md              # 累计变更记录和调参理由
 ├─ dataset/data.yaml         # YOLO 类别及数据集路径
+├─ docs/combat-flow.md       # 打怪逻辑流程图与参数速查
+├─ .cursor/
+│  ├─ rules/                 # 改核心模块时自动触发的文档同步规则
+│  └─ skills/                # 手动调用的全量文档核对流程
 ├─ src/mxd_bot/
 │  ├─ capture.py             # 按窗口标题截取客户区
 │  ├─ detector.py            # YOLO 实时推理
@@ -104,7 +120,6 @@ py -3.13 -m venv C:\mxd-venv
 C:\mxd-venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -e ".[dev]"
-Copy-Item config.example.yaml config.yaml
 ```
 
 如果 PowerShell 禁止激活脚本，可只对当前终端执行：
@@ -157,11 +172,11 @@ C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run --profile war
 
 ## 2. 修改基础配置
 
-编辑 `config.yaml`：
+`config.yaml` 是程序实际读取的配置，已经在仓库里，直接编辑：
 
 ```yaml
 window:
-  title_contains: "MapleStory"
+  title_contains: "北斗GMS083"
 
 behavior:
   profile: "warrior"
@@ -173,6 +188,8 @@ behavior:
 - 按键和技能冷却在 `profiles` 下修改。
 - 第一轮必须保持 `dry_run: true`。
 - 游戏使用窗口模式，训练和运行时保持相同分辨率与 UI 缩放。
+
+不确定某个配置项是什么意思、有哪些可选值时，查 `config.example.yaml`——那份是参数说明书，注释最全，数值只是通用起点，不必和 `config.yaml` 一致。战斗参数怎么调看 [`docs/combat-flow.md`](docs/combat-flow.md)。
 
 ## 3. 采集训练图片
 

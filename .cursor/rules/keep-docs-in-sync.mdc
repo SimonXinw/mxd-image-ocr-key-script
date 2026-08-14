@@ -1,0 +1,36 @@
+---
+description: 改动打怪核心逻辑或配置后，同步 docs/combat-flow.md 与 CHANGELOG.md
+globs: src/mxd_bot/decision.py,src/mxd_bot/input_controller.py,src/mxd_bot/player_locator.py,src/mxd_bot/detector.py,src/mxd_bot/capture.py,config.yaml,config.example.yaml
+alwaysApply: false
+---
+
+# 核心逻辑改动必须同步文档
+
+`docs/combat-flow.md` 是打怪逻辑的唯一权威说明，`CHANGELOG.md` 是累计历史。代码和它们对不上，等于文档失效。
+
+## 触发条件
+
+只要本轮会话**实际修改**了以下任意一项，就必须同步：
+
+- `decision.py`：选目标、动作判定、防抖
+- `input_controller.py`：按键发送方式、长按/冷却策略
+- `player_locator.py` / `detector.py` / `capture.py`：定位或识别链路
+- `config.yaml`：任何 `behavior`、`profiles`、`model`、`player`、`ui` 参数（这份是程序实际读取的正式配置，已入库）
+
+只读代码、只跑测试、只改 GUI 文案，**不需要**同步，也不要主动提。
+
+## 同步动作
+
+1. 改了判定分支或新增/删除步骤 → 更新 `docs/combat-flow.md` 的 Mermaid 流程图，并把顶部「最后同步」日期改成今天。
+2. 改了参数取值 → 更新该文件的「关键参数速查」表格。**新增**配置项时，还要在 `config.example.yaml` 补一条带注释的默认值。
+3. 新增/移动模块 → 更新「代码位置对照」表。
+4. 在 `CHANGELOG.md` 顶部按日期加一条，写清**背景、做法、参数改前→改后、为什么**。
+5. 改了启动方式或配置入口 → 顺带更新 `README.md` 对应小节。
+
+## 硬性要求
+
+- Mermaid 节点文字里禁止出现 `|`，绝对值写成 `abs(dx)`；含括号的节点文字要用双引号包起来，否则在线渲染会报错。
+- 参数表里的「当前值」以 `config.yaml` 为准。`config.example.yaml` 只是参数说明书，**不要**去改它的数值追求两边一致，只在新增配置项时补条目。
+- 同步完在回复里用一句话说明改了哪些文档，不要静默完成。
+
+需要一次性全量核对代码与文档是否一致时，执行 `.cursor/skills/sync-combat-docs/SKILL.md`。
