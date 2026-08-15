@@ -8,6 +8,7 @@ from mxd_bot.app import run_bot
 from mxd_bot.collect import collect_screenshots
 from mxd_bot.config import apply_overrides, load_config
 from mxd_bot.device import describe_torch_backend
+from mxd_bot.input_controller import AdminRequiredError, ensure_running_as_admin
 from mxd_bot.train import train_model
 
 
@@ -70,6 +71,12 @@ def main() -> None:
             runtime_config["training"]["device"] = args.device
         train_model(runtime_config, resume=bool(args.resume))
     elif args.command in {"gui", "run"}:
+        # 放在加载模型之前，权限不对就立刻失败，不用等几十秒。
+        try:
+            ensure_running_as_admin()
+        except AdminRequiredError as exc:
+            raise SystemExit(str(exc)) from exc
+
         if args.command == "gui" or not getattr(args, "cli", False):
             from mxd_bot.gui import run_gui
 

@@ -36,6 +36,8 @@ def run_bot(config: dict[str, Any]) -> None:
     LOGGER.info(capture.describe())
     if capture.last_info is not None:
         controller.set_target_window(capture.last_info.hwnd)
+        if not behavior["dry_run"]:
+            controller.focus_game_window_once()
 
     LOGGER.info(
         "职业=%s，dry_run=%s，conf=%s；F8 暂停/继续，F9 或 Ctrl+C 退出",

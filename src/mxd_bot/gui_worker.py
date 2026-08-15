@@ -47,9 +47,9 @@ class BotWorker(QThread):
         profile_name = behavior["profile"]
         profile = config["profiles"][profile_name]
         monster_classes = set(config["model"]["monster_classes"])
-        target_fps = float(config.get("ui", {}).get("target_fps", 30))
+        target_fps = float(config.get("ui", {}).get("target_fps", 60))
         frame_interval = 1.0 / max(1.0, target_fps)
-        preview_fps = float(config.get("ui", {}).get("preview_fps", 15))
+        preview_fps = float(config.get("ui", {}).get("preview_fps", 24))
         preview_interval = 1.0 / max(1.0, preview_fps)
 
         detector: YoloDetector | None = None
@@ -69,6 +69,8 @@ class BotWorker(QThread):
             self._emit_log(capture.describe())
             if capture.last_info is not None:
                 controller.set_target_window(capture.last_info.hwnd)
+                if not behavior["dry_run"]:
+                    controller.focus_game_window_once()
 
             self._running = True
             self._emit_log(
@@ -103,7 +105,8 @@ class BotWorker(QThread):
                     self._emit_log(
                         f"抓取={capture.last_method} | 检测={len(detections)} "
                         f"人={player_label} 怪={len(monsters)} "
-                        f"最高分={top_conf:.3f} | 动作={decision.action.value}"
+                        f"最高分={top_conf:.3f} | 动作={decision.action.value} | "
+                        f"dry_run={bool(behavior['dry_run'])} | {controller.describe_focus()}"
                     )
 
                 if not self._paused:

@@ -2,7 +2,7 @@
 
 > 本文件是打怪逻辑的**唯一权威说明**。改动 `decision.py` / `input_controller.py` / `player_locator.py` / `config.yaml` 里的战斗参数后，必须同步更新这里。
 >
-> 最后同步：2026-08-14，对应代码 `src/mxd_bot/decision.py`。
+> 最后同步：2026-08-15，对应代码 `src/mxd_bot/decision.py` / `src/mxd_bot/input_controller.py` / `src/mxd_bot/gui_app.py`。
 
 ## 一句话概述
 
@@ -130,9 +130,8 @@ flowchart TD
 
     U --> U1{dry_run<br/>仅预览?}
     U1 -->|是| U2[只打日志，不发按键]
-    U1 -->|否| U3{游戏窗口在前台?}
-    U3 -->|否| U5[松开持续方向键<br/>恢复 NumLock<br/>暂停发键但继续识别预览]
-    U3 -->|是| U6[NumLock 临时关闭<br/>SendInput 发扫描码]
+    U1 -->|否| U3[不抢焦点<br/>切回且正在移动则重按方向键]
+    U3 --> U6[SendInput 扫描码发键]
 
     U6 --> U4{动作类型}
     U4 -->|ATTACK| V1[松开方向键<br/>按 attack_key<br/>受 attack_cooldown_seconds 限制]
@@ -145,7 +144,6 @@ flowchart TD
     V3 --> W
     V4 --> W
     U2 --> W
-    U5 --> W
     W --> X[下一帧]
 ```
 
@@ -167,9 +165,10 @@ flowchart TD
 
 | 参数 | 当前值 | 作用 | 什么时候调 |
 | --- | --- | --- | --- |
-| `attack_range_pixels` | 180 | 横向 `0～180` 都打（含贴脸）；不是 180～220 才打 | 贴脸挨打就调大；够不到怪就调小 |
-| `attack_release_margin_pixels` | 40 | 已在攻击时上限放宽到 180+40=220，防止边界走停抖动 | 在攻击边界反复走走停停就调大 |
-| `attack_cooldown_seconds` | 0.40 | 两次攻击最小间隔 | 按技能实际后摇调整 |
+| `profiles.warrior.attack_range_pixels` | 180 | 战士横向距离不超过 180 时攻击 | 若 180 距离经常打空可降到 160 |
+| `profiles.priest.attack_range_pixels` | 230 | 法师/牧师横向距离不超过 230 时攻击 | 远程技能仍够不到就调小，避免原地空放 |
+| `attack_release_margin_pixels` | 40 | 已在攻击时上限额外放宽 40，防止边界走停抖动 | 在攻击边界反复走走停停就调大 |
+| `attack_cooldown_seconds` | 战士 0.40 / 法师 0.75 | 两次攻击最小间隔 | 按技能实际后摇调整 |
 | `action_confirm_frames` | 2 | 非攻击动作要连续几帧才切换 | 左右横跳就调大；反应迟钝就调小 |
 | `jump_when_target_above_pixels` | 45 | 怪脚底比人脚底高出这么多像素才考虑跳 | 乱跳就调大；该跳不跳就调小 |
 | `patrol_switch_seconds` | 2.5 | 无怪巡逻时左右换向周期 | 巡逻太碎就调大 |
@@ -192,8 +191,8 @@ flowchart TD
 
 | 参数 | 当前值 | 作用 |
 | --- | --- | --- |
-| `target_fps` | 30 | 识别 + 决策循环频率，决定反应速度 |
-| `preview_fps` | 15 | GUI 画面刷新频率，只影响观感和 CPU |
+| `target_fps` | 60 | 识别 + 决策循环频率，决定反应速度 |
+| `preview_fps` | 24 | GUI 画面刷新频率，只影响观感和 CPU |
 
 ## 代码位置对照
 
@@ -214,7 +213,9 @@ flowchart TD
 - 只处理同层或略高平台的怪，没有绳梯、传送点、小地图寻路。
 - 没有自动补药、死亡恢复、掉落拾取。
 - 巡逻仅在**完全无怪**时启动：固定周期左右横向来回，不认识地图边缘。画面有怪但都不可达时是 `idle`，不会去巡逻。
-- 自动输入只在游戏窗口处于前台时发送。切到其他软件会立即松开方向键并暂停发键，识别和预览继续；切回游戏后自动恢复，程序绝不主动置顶或抢焦点。
+- 真实发键使用 `SendInput` 扫描码。**只在启动时抢一次焦点**（`focus_game_window_once`），之后运行期间永不抢焦点。用 `GetForegroundWindow()` 判断前台变化；切回游戏且 `_held_direction` 仍在长按时，重发一次方向键 `keyDown`。
+- **必须以管理员身份运行**。`__main__.py` 在加载模型前调用 `ensure_running_as_admin()`，不是管理员就抛 `AdminRequiredError` 并退出。权限拦截由 Windows 内核的 UIPI 完成，不是项目代码做的：`SendInput` 照样返回成功，事件被系统丢弃，用户态无法绕过。
+- 脚本不读取或修改游戏内存。
 - 竖直判定已改用脚底；但没有 `platform` / `ladder` 类时，只能估算层级，不能规划跨层路线。
 - 飞行怪、框底没有贴住地面的目标不适合用脚底判断，后续可为这类怪单独分类或增加移动类型属性。
 - 玩家定位依赖名字模板，改分辨率 / 字体缩放 / 改名后必须重截 `assets/player_name.png`。

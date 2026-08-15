@@ -31,7 +31,8 @@ player:
 
 behavior:
   profile: "warrior"
-  dry_run: true
+  # false = 直接真实发键。想只看识别不动手，把它改回 true 或在 GUI 勾「仅预览」。
+  dry_run: false
   auto_attack_enabled: true
   startup_delay_seconds: 3
   loop_interval_seconds: 0.03
@@ -57,9 +58,9 @@ behavior:
   debug_window: true
 
 ui:
-  target_fps: 30
+  target_fps: 60
   # 预览无需和识别同帧率，降低刷新可减少 GUI 画图开销。
-  preview_fps: 15
+  preview_fps: 24
 
 profiles:
   warrior:
@@ -71,7 +72,7 @@ profiles:
     down_key: "down"
     hp_potion_key: "1"
     mp_potion_key: "2"
-    # 越大越早停下来打，避免贴脸；战士近战建议 200~230。
+    # 战士近战：180 提前停步攻击；若实际技能经常打空可降到 160。
     attack_range_pixels: 180
     attack_cooldown_seconds: 0.40
     buffs:
@@ -86,7 +87,8 @@ profiles:
     down_key: "down"
     hp_potion_key: "1"
     mp_potion_key: "2"
-    attack_range_pixels: 180
+    # 法师/牧师远程攻击距离更长。
+    attack_range_pixels: 230
     attack_cooldown_seconds: 0.75
     buffs:
       - key: "f1"

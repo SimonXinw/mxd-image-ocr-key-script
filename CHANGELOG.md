@@ -24,6 +24,52 @@
 
 ---
 
+## 2026-08-15
+
+### fix: 非管理员启动直接报错退出，不再只打一条警告
+
+- 背景：原 `_warn_if_not_admin()` 只是 `LOGGER.warning`，容易被日志淹没，用户还会误以为是项目代码主动丢了按键。
+- 澄清：按键丢弃是 **Windows 内核 UIPI** 干的，项目代码从头到尾没有因权限跳过发键（`_ready` 只跟 `dry_run` 有关）。这一层用户态绕不过去，本项目要求必须管理员运行。
+- 做法：删掉 `_warn_if_not_admin()`，改为模块级函数 `ensure_running_as_admin()`，只判断 `IsUserAnAdmin()`，不是管理员就抛 `AdminRequiredError`。调用点放在 `__main__.py` 的 `run` / `gui` 分支最前面，**在加载 YOLO 模型之前**就失败，不用等几十秒；`SystemExit` 输出一行中文提示，没有 traceback。`collect` / `train` / `doctor` 不需要管理员，不受影响。
+- 测试：权限用例精简为 2 个（非管理员报错、管理员放行）；共 20 个用例通过。
+- 文档：同步 `docs/combat-flow.md`、`README.md`、本文件。
+
+### fix: 焦点只在启动时抢一次，运行期间不再打断其他软件
+
+- 背景：`_focus_target_window` 在每次攻击、移动、跳跃前都会 `ShowWindow` + `SetForegroundWindow`，导致切到别的软件后冒险岛客户端立刻被弹回最上层。
+- 做法：新增 `InputController.focus_game_window_once()`，由 `app.py` 和 `gui_worker.py` 在真实模式启动时各调一次；之后不再调用任何聚焦 API。用 `GetForegroundWindow()` 跟踪前台变化。
+- 恢复移动：切回游戏时，如果 `_held_direction` 仍在长按，直接再发一次方向键 `keyDown`；不额外改后台停键等逻辑。
+- 测试：覆盖启动聚焦一次、已在前台则不聚焦、运行期间不抢焦点、切回后重按方向键；共 20 个用例通过。
+- 文档：同步 `docs/combat-flow.md`、`README.md`、本文件。
+
+### chore: 默认改为真实模式，识别 60 帧 / 预览 24 帧
+
+- 参数：`behavior.dry_run` 从 `true` 改成 `false`（调试阶段结束，默认直接打）；`ui.target_fps` 从 30 改成 60（提高反应速度）；`ui.preview_fps` 从 15 改成 24（画面顺一点，同时不跟着识别帧率白烧 CPU）。
+- 做法：同步 `gui_app.py`、`gui_worker.py` 里读配置失败时的兜底默认值，避免配置缺项时又退回旧值。
+- 影响：GUI 打开时「仅预览」默认不勾，点开始即真实发键并把游戏切前台一次。低配显卡请把识别帧率手动降回 30。
+
+### fix: 明确权限不一致导致按键被系统拦截
+
+- 背景：检测、决策和游戏焦点均正常，但角色完全不响应模拟按键。
+- 已确认原因：游戏以管理员权限运行，脚本不是管理员；Windows UIPI 会静默拦截低权限进程向高权限进程注入的 `SendInput`。
+- 做法：保留启动时的管理员权限告警及焦点诊断日志；删除基于错误推断加入的焦点防抖、修饰键清理和分层自测代码。
+- 发键方式：继续使用与已验证版本一致的 `SendInput` 扫描码，不读取、不修改游戏内存，也不注入游戏进程。
+- 文档：同步 `docs/combat-flow.md`、`README.md`、本文件。
+
+### feat: 职业下拉框改为中文并使用独立攻击范围
+
+- 背景：职业下拉框只显示 `warrior/priest`，且正式配置中两个职业攻击范围都是 180，无法直观看出选择职业后的距离差异。
+- 做法：GUI 显示「战士（攻击范围 180）」和「法师/牧师（攻击范围 230）」，内部仍使用原有配置键，避免破坏 CLI；选择后继续由对应 `profiles` 配置创建决策引擎。
+- 参数：`profiles.priest.attack_range_pixels` 从 180 → 230；战士保持 180，若实测远距离空放再降到 160。
+- 文档：同步 `docs/combat-flow.md`、`README.md`、本文件。
+
+### fix: 去掉前台停键与抢焦点，直接发键
+
+- 背景：前台检查会把真实模式卡住；抢焦点又会干扰预览面板操作。
+- 做法：删除停键拦截和 `SetForegroundWindow`，真实模式直接 `SendInput`。
+- 边界：游戏需保持前台才能收到按键。
+- 文档：同步 `docs/combat-flow.md`、`README.md`、本文件。
+
 ## 2026-08-14
 
 ### fix: 游戏失去前台时暂停发键，不再强制抢焦点

@@ -180,13 +180,14 @@ window:
 
 behavior:
   profile: "warrior"
-  dry_run: true
+  dry_run: false
 ```
 
 - `title_contains` 必须能匹配游戏窗口标题，可只写标题中稳定的一部分。
-- 战士使用 `warrior`，牧师使用 `priest`。
+- GUI 下拉框显示中文职业；内部配置键仍是战士 `warrior`、法师/牧师 `priest`。
+- 当前攻击范围：战士 180，法师/牧师 230；选择职业后会自动使用对应配置。
 - 按键和技能冷却在 `profiles` 下修改。
-- 第一轮必须保持 `dry_run: true`。
+- 当前默认 `dry_run: false`（直接真实发键）。换地图、改参数后想先只看识别，把它改回 `true` 或在 GUI 勾「仅预览」。
 - 游戏使用窗口模式，训练和运行时保持相同分辨率与 UI 缩放。
 
 不确定某个配置项是什么意思、有哪些可选值时，查 `config.example.yaml`——那份是参数说明书，注释最全，数值只是通用起点，不必和 `config.yaml` 一致。战斗参数怎么调看 [`docs/combat-flow.md`](docs/combat-flow.md)。
@@ -291,15 +292,15 @@ CPU 训练过慢时可用带 GPU 的电脑或 Colab 训练，再把 `best.pt` �
 
 ## 6. 先以演练模式启动
 
-`run` / `gui` 默认都会打开监控面板（方案 A：左控制 + 右预览）：
+`run` / `gui` 默认都会打开监控面板（方案 A：左控制 + 右预览）。**必须用管理员身份的 PowerShell 启动**，否则会直接报错退出：
 
 ```powershell
 C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run
 ```
 
 - 预览是游戏截屏镜像，不是第二个客户端，可拖到冒险岛窗口旁边对照。
-- 默认目标帧率 30（`ui.target_fps`）。1660S 建议 30；R5 5600 + 2080 Super 可试 60。
-- 开始前勾选「演练模式」。
+- 默认识别帧率 60（`ui.target_fps`）、预览帧率 24（`ui.preview_fps`）。1660S 这类显卡建议把识别降到 30。
+- 默认不勾「仅预览」，点开始就会真实发键，并把游戏窗口切到前台一次。想先空跑就勾上「仅预览」。
 
 只要命令行、不要面板：
 
@@ -338,7 +339,7 @@ python -m mxd_bot --config config.yaml run --profile priest --dry-run
 python -m mxd_bot --config config.yaml run --profile warrior --live
 ```
 
-启动后有倒计时，需要在倒计时结束前切换到游戏窗口。机器人只在游戏位于前台时发送按键，**不会主动置顶或抢焦点**。切到其他软件时会立即松开方向键并暂停发键（游戏本身照常运行，识别和预览继续），切回游戏后自动恢复。
+启动后有倒计时。真实模式用 `SendInput` 扫描码发键。**只在启动时把游戏窗口切到前台一次**，之后运行期间不会再抢焦点。切回游戏时，如果正在长按移动，会自动重新按下当前方向键。
 
 攻击距离和按键示例：
 
@@ -347,12 +348,12 @@ profiles:
   warrior:
     attack_key: "ctrl"
     jump_key: "alt"
-    attack_range_pixels: 150
-    attack_cooldown_seconds: 0.48
+    attack_range_pixels: 180
+    attack_cooldown_seconds: 0.40
   priest:
     attack_key: "ctrl"
     jump_key: "alt"
-    attack_range_pixels: 180
+    attack_range_pixels: 230
     attack_cooldown_seconds: 0.75
 ```
 
@@ -409,10 +410,10 @@ player:
 ### 按键没有效果
 
 - 先用演练确认决策正常；
-- 确保使用 `--live`，且游戏是前台窗口；
-- 切到其他软件后自动按键会暂停，这是防止按键误发到其他窗口的正常保护；
-- 某些客户端权限等级不同，普通进程不能向管理员进程发送输入；
-- 不要通过关闭 UAC 等方式绕过系统安全边界。
+- 确保使用 `--live`（或 GUI 取消「仅预览」）；
+- 真实模式用 `SendInput` 扫描码发键，只在启动时抢一次焦点；切回游戏且仍在长按移动时会重按方向键；
+- 必须以管理员身份运行。非管理员启动 `run` / `gui` 会直接报错退出，因为 Windows 的 UIPI 不允许低权限进程向游戏窗口注入输入，按键会被系统静默丢弃；
+- 不要通过关闭 UAC 等方式绕过系统安全边界，用管理员身份启动即可。
 
 ### 训练准确但游戏里漏检
 

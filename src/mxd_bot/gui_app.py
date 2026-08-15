@@ -26,6 +26,11 @@ from PySide6.QtWidgets import (
 
 from mxd_bot.gui_worker import BotWorker
 
+PROFILE_NAMES = {
+    "warrior": "战士",
+    "priest": "法师/牧师",
+}
+
 
 class MainWindow(QMainWindow):
     def __init__(self, config: dict[str, Any]) -> None:
@@ -54,8 +59,10 @@ class MainWindow(QMainWindow):
 
         root_layout.addWidget(self._build_log_bar())
 
-        self.profile_box.currentTextChanged.connect(self._load_profile_settings)
-        self._load_profile_settings(self.profile_box.currentText())
+        self.profile_box.currentIndexChanged.connect(
+            lambda _: self._load_profile_settings(self._selected_profile_name())
+        )
+        self._load_profile_settings(self._selected_profile_name())
         self._append_log("GUI 已就绪。先开游戏窗口，再点开始。")
 
     def _build_top_bar(self) -> QWidget:
@@ -78,15 +85,16 @@ class MainWindow(QMainWindow):
         self.pause_button.clicked.connect(self._on_pause)
 
         self.profile_box = QComboBox()
-        self.profile_box.addItems(sorted(self._base_config["profiles"].keys()))
+        for profile_name in self._base_config["profiles"]:
+            self.profile_box.addItem(self._profile_label(profile_name), profile_name)
         current_profile = self._base_config["behavior"].get("profile", "warrior")
-        index = self.profile_box.findText(current_profile)
+        index = self.profile_box.findData(current_profile)
         if index >= 0:
             self.profile_box.setCurrentIndex(index)
-        self.profile_box.setMaximumWidth(110)
+        self.profile_box.setMaximumWidth(210)
 
         self.dry_run_box = QCheckBox("仅预览")
-        self.dry_run_box.setChecked(bool(self._base_config["behavior"].get("dry_run", True)))
+        self.dry_run_box.setChecked(bool(self._base_config["behavior"].get("dry_run", False)))
         self.dry_run_box.setToolTip("勾选后不发送任何自动按键，只看预览和日志")
 
         self.auto_attack_box = QCheckBox("自动攻击")
@@ -96,13 +104,13 @@ class MainWindow(QMainWindow):
 
         self.fps_box = QSpinBox()
         self.fps_box.setRange(10, 60)
-        self.fps_box.setValue(int(self._base_config.get("ui", {}).get("target_fps", 30)))
+        self.fps_box.setValue(int(self._base_config.get("ui", {}).get("target_fps", 60)))
         self.fps_box.setMaximumWidth(70)
 
         self.preview_fps_box = QSpinBox()
         self.preview_fps_box.setRange(5, 60)
         self.preview_fps_box.setValue(
-            int(self._base_config.get("ui", {}).get("preview_fps", 15))
+            int(self._base_config.get("ui", {}).get("preview_fps", 24))
         )
         self.preview_fps_box.setMaximumWidth(70)
 
@@ -189,7 +197,7 @@ class MainWindow(QMainWindow):
         tests_layout.addWidget(self.right_test_button, 1, 3)
         layout.addWidget(tests)
 
-        tip = QLabel("手动测试会切到游戏并真实发键；仅预览只影响自动按键。")
+        tip = QLabel("手动测试会直接真实发键，请先切到游戏；仅预览只影响自动按键。")
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#666; font-size:11px;")
         layout.addWidget(tip)
@@ -263,9 +271,20 @@ class MainWindow(QMainWindow):
         for field, value in fields.items():
             field.setCurrentText(str(value))
 
+    def _selected_profile_name(self) -> str:
+        return str(self.profile_box.currentData() or self.profile_box.currentText())
+
+    def _profile_label(self, profile_name: str) -> str:
+        display_name = PROFILE_NAMES.get(profile_name, profile_name)
+        profile = self._base_config["profiles"].get(profile_name, {})
+        attack_range = profile.get("attack_range_pixels")
+        if attack_range is None:
+            return display_name
+        return f"{display_name}（攻击范围 {attack_range}）"
+
     def _build_runtime_config(self) -> dict[str, Any]:
         config = deepcopy(self._base_config)
-        profile_name = self.profile_box.currentText()
+        profile_name = self._selected_profile_name()
         config["behavior"]["profile"] = profile_name
         config["behavior"]["dry_run"] = self.dry_run_box.isChecked()
         config["behavior"]["auto_attack_enabled"] = self.auto_attack_box.isChecked()
@@ -381,9 +400,9 @@ class MainWindow(QMainWindow):
         mode += " / 攻开" if status.get("auto_attack") else " / 攻关"
         if status.get("paused"):
             mode += " / 暂停"
-        elif status.get("input_suspended"):
-            mode += " / 后台停键"
-        self.mode_label.setText(f"{status.get('profile', '-')} | {mode}")
+        profile_name = str(status.get("profile", "-"))
+        profile_label = self._profile_label(profile_name)
+        self.mode_label.setText(f"{profile_label} | {mode}")
 
     def _on_failed(self, message: str) -> None:
         self._append_log(f"错误：{message}")

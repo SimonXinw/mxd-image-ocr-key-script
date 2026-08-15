@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import sys
 import time
 from ctypes import wintypes
 from typing import Any
@@ -9,6 +10,28 @@ from typing import Any
 from mxd_bot.types import ActionType, Decision
 
 LOGGER = logging.getLogger(__name__)
+
+
+class AdminRequiredError(RuntimeError):
+    """脚本不是管理员，Windows 会静默丢弃发给游戏的按键。"""
+
+
+def ensure_running_as_admin() -> None:
+    """非管理员时直接报错。按键丢弃由 Windows UIPI 完成，用户态无法绕过。"""
+    try:
+        is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except OSError:
+        is_admin = False
+
+    if is_admin:
+        return
+
+    raise AdminRequiredError(
+        "本脚本必须以管理员身份运行，否则 Windows 会静默丢弃发给游戏的按键"
+        "（表现为焦点在游戏上、日志一切正常、角色却完全不动）。"
+        "请以管理员身份打开 PowerShell 后重新执行："
+        f"{sys.executable} -m mxd_bot --config config.yaml run"
+    )
 
 MOVE_KEYS = {"left", "right", "up", "down", "a", "d", "w", "s"}
 ARROW_KEYS = {"left", "right", "up", "down"}
@@ -79,6 +102,8 @@ KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_EXTENDEDKEY = 0x0001
 INPUT_KEYBOARD = 1
 VK_NUMLOCK = 0x90
+SW_RESTORE = 9
+FOCUS_SETTLE_SECONDS = 0.1
 
 
 class KeyBdInput(ctypes.Structure):
@@ -145,13 +170,10 @@ class InputController:
         self._target_hwnd: int | None = None
         self._held_direction: str | None = None
         self._numlock_forced_off = False
-        self._background_suspended = False
+        self._was_foreground = True
         self._user32 = ctypes.windll.user32
         self._extra = ctypes.c_ulong(0)
-        self._ready = True
-
-        if self.dry_run:
-            self._ready = False
+        self._ready = not self.dry_run
 
     @staticmethod
     def _normalize_key(raw_key: object) -> str:
@@ -177,9 +199,49 @@ class InputController:
     def set_target_window(self, hwnd: int) -> None:
         self._target_hwnd = hwnd
 
+    def focus_game_window_once(self) -> None:
+        """启动时把游戏切到前台一次；之后运行期间不再抢焦点。"""
+        if self._target_hwnd is None:
+            return
+
+        hwnd = int(self._target_hwnd)
+        if int(self._user32.GetForegroundWindow()) != hwnd:
+            self._user32.ShowWindow(hwnd, SW_RESTORE)
+            self._user32.SetForegroundWindow(hwnd)
+            time.sleep(FOCUS_SETTLE_SECONDS)
+            LOGGER.info("已把游戏窗口切到前台（仅启动时一次）")
+
+        self._was_foreground = int(self._user32.GetForegroundWindow()) == hwnd
+        self._held_direction = None
+
     @property
     def input_suspended(self) -> bool:
-        return self._background_suspended
+        """兼容旧 GUI 状态字段；始终为 False。"""
+        return False
+
+    def describe_focus(self) -> str:
+        """诊断：游戏窗口是否前台、当前前台窗口是谁。"""
+        if self._target_hwnd is None:
+            return "焦点=未知(未绑定游戏 hwnd)"
+
+        target = int(self._target_hwnd)
+        foreground = int(self._user32.GetForegroundWindow())
+        if foreground == target:
+            return f"焦点=游戏前台 hwnd={target:#x}"
+
+        title = self._window_title(foreground) or "(无标题)"
+        return (
+            f"焦点=不在游戏 游戏hwnd={target:#x} "
+            f"前台hwnd={foreground:#x} 前台标题={title!r}"
+        )
+
+    def _window_title(self, hwnd: int) -> str:
+        if not hwnd:
+            return ""
+        length = int(self._user32.GetWindowTextLengthW(hwnd))
+        buffer = ctypes.create_unicode_buffer(length + 1)
+        self._user32.GetWindowTextW(hwnd, buffer, length + 1)
+        return buffer.value
 
     def execute(self, decision: Decision) -> None:
         now = time.monotonic()
@@ -188,16 +250,24 @@ class InputController:
         if self.dry_run:
             if action != self._last_dry_action:
                 LOGGER.info(
-                    "[演练] action=%s dx=%s dy=%s",
+                    "[演练] action=%s dx=%s dy=%s | %s",
                     action.value,
                     decision.horizontal_distance,
                     decision.vertical_distance,
+                    self.describe_focus(),
                 )
                 self._last_dry_action = action
             return
 
-        if not self._allow_game_input():
-            return
+        if action != self._last_dry_action:
+            LOGGER.info(
+                "[真实] action=%s dx=%s dy=%s | %s",
+                action.value,
+                decision.horizontal_distance,
+                decision.vertical_distance,
+                self.describe_focus(),
+            )
+            self._last_dry_action = action
 
         if action == ActionType.ATTACK:
             self._release_direction()
@@ -235,22 +305,15 @@ class InputController:
             LOGGER.warning("未知手动按键动作：%s", key_name)
             return
 
-        if not self._allow_game_input():
-            LOGGER.warning("[手动测试] 游戏不在前台，未发送=%s", key_name)
-            return
-
         self._ready = True
         if key in MOVE_KEYS:
             self._hold(key, max(0.12, self.move_pulse))
         else:
             self._press(key)
-        LOGGER.info("[手动测试] 已发送=%s key=%s", key_name, key)
+        LOGGER.info("[手动测试] 已发送=%s key=%s | %s", key_name, key, self.describe_focus())
 
     def cast_due_buffs(self) -> None:
         now = time.monotonic()
-        if not self.dry_run and not self._allow_game_input():
-            return
-
         for buff in self.buffs:
             key = self._normalize_key(buff["key"])
             interval = float(buff["interval_seconds"])
@@ -281,6 +344,8 @@ class InputController:
 
     def _hold_direction(self, key: str) -> None:
         """保持方向键按下，直到决策改成攻击、跳跃、停止或另一方向。"""
+        self._prepare_game_input()
+
         if self._held_direction == key:
             return
 
@@ -300,12 +365,14 @@ class InputController:
         LOGGER.info("持续移动结束 key=%s", key)
 
     def _press(self, key: str) -> None:
+        self._prepare_game_input()
         self._ensure_numlock_off_for_arrows(key)
         self._key_down(key)
         time.sleep(0.03)
         self._key_up(key)
 
     def _hold(self, key: str, duration: float) -> None:
+        self._prepare_game_input()
         self._ensure_numlock_off_for_arrows(key)
         self._key_down(key)
         try:
@@ -314,6 +381,7 @@ class InputController:
             self._key_up(key)
 
     def _jump(self, direction: str) -> None:
+        self._prepare_game_input()
         self._ensure_numlock_off_for_arrows(direction)
         self._key_down(direction)
         try:
@@ -324,24 +392,23 @@ class InputController:
         finally:
             self._key_up(direction)
 
-    def _allow_game_input(self) -> bool:
-        """只允许向当前前台游戏发送输入，绝不主动抢焦点。"""
-        is_foreground = (
-            self._target_hwnd is not None
-            and self._user32.GetForegroundWindow() == self._target_hwnd
-        )
-        if is_foreground:
-            if self._background_suspended:
-                LOGGER.info("游戏已回到前台，恢复自动按键")
-                self._background_suspended = False
-            return True
+    def _prepare_game_input(self) -> None:
+        """跟踪前台变化；切回游戏且正在长按移动时，重发一次方向键。"""
+        if self._target_hwnd is None:
+            return
 
-        self._release_direction()
-        self._restore_numlock_if_needed()
-        if not self._background_suspended:
-            LOGGER.info("游戏不在前台，已暂停自动按键（识别和预览继续）")
-            self._background_suspended = True
-        return False
+        is_foreground = int(self._user32.GetForegroundWindow()) == int(self._target_hwnd)
+        if is_foreground == self._was_foreground:
+            return
+
+        self._was_foreground = is_foreground
+        if is_foreground:
+            # 移动是长按：切走后游戏丢了 keydown，切回时如果还在移动就重按一次。
+            if self._held_direction is not None:
+                self._key_down(self._held_direction)
+                LOGGER.info("游戏回到前台，重新按下移动键 key=%s", self._held_direction)
+        else:
+            LOGGER.warning("游戏已切到后台 | %s", self.describe_focus())
 
     def _ensure_numlock_off_for_arrows(self, key: str) -> None:
         """NumLock 开着时模拟方向键会变成小键盘数字；本次运行内只关一次。"""
@@ -368,7 +435,6 @@ class InputController:
     def _set_numlock(self, enabled: bool) -> None:
         if self._numlock_on() == enabled:
             return
-        # 切换 NumLock 状态
         self._send_vk(VK_NUMLOCK, key_up=False)
         self._send_vk(VK_NUMLOCK, key_up=True)
 
