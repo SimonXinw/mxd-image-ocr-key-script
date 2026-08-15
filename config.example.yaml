@@ -97,8 +97,11 @@ profiles:
         interval_seconds: 180
 
 collection:
+  # GUI「开始截图」勾选后，运行期间按间隔保存画面；也可单独跑 collect 命令。
+  enabled: false
   output_dir: "captures"
-  interval_seconds: 0.35
+  # 采集间隔（秒）
+  interval_seconds: 1.0
 
 training:
   base_model: "yolo11n.pt"

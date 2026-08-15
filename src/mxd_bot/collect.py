@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import cv2
+import numpy as np
 
 from mxd_bot.capture import WindowCapture
 
@@ -14,9 +15,19 @@ LOGGER = logging.getLogger(__name__)
 VK_F9 = 0x78
 
 
+def save_capture_frame(frame: np.ndarray, output_dir: Path, count: int) -> Path:
+    """把当前帧保存到采集目录，返回写入路径。"""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    milliseconds = int((time.time() % 1) * 1000)
+    path = output_dir / f"{timestamp}_{milliseconds:03d}_{count:06d}.png"
+    if not cv2.imwrite(str(path), frame):
+        raise OSError(f"截图写入失败：{path}")
+    return path
+
+
 def collect_screenshots(config: dict[str, Any]) -> None:
     output_dir = Path(config["collection"]["output_dir"])
-    output_dir.mkdir(parents=True, exist_ok=True)
     interval = float(config["collection"]["interval_seconds"])
     capture = WindowCapture(
         config["window"]["title_contains"],
@@ -36,11 +47,7 @@ def collect_screenshots(config: dict[str, Any]) -> None:
             now = time.monotonic()
             frame = capture.grab()
             if now >= next_capture_at:
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                milliseconds = int((time.time() % 1) * 1000)
-                path = output_dir / f"{timestamp}_{milliseconds:03d}_{count:06d}.png"
-                if not cv2.imwrite(str(path), frame):
-                    raise OSError(f"截图写入失败：{path}")
+                save_capture_frame(frame, output_dir, count)
                 count += 1
                 next_capture_at = now + interval
 

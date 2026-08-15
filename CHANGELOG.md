@@ -26,6 +26,13 @@
 
 ## 2026-08-15
 
+### feat: GUI 增加「开始截图」，采集间隔改为 1 秒
+
+- 背景：每次采集都要单独跑 `collect` 命令不方便；希望像「仅预览」一样勾一下就能边跑边存图。
+- 做法：顶部栏新增「开始截图」勾选框，写入 `collection.enabled`；`gui_worker` 运行期间按间隔保存原始画面到 `captures/`。抽出 `save_capture_frame()` 供 GUI 与 `collect` 共用。
+- 参数：`collection.interval_seconds` 从 `0.35` → `1.0`；新增 `collection.enabled`（默认 `false`）。
+- 文档：同步 `README.md`、`config.example.yaml`、本文件。
+
 ### fix: 非管理员启动直接报错退出，不再只打一条警告
 
 - 背景：原 `_warn_if_not_admin()` 只是 `LOGGER.warning`，容易被日志淹没，用户还会误以为是项目代码主动丢了按键。

@@ -4,11 +4,13 @@ import logging
 import queue
 import time
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
 from mxd_bot.capture import WindowCapture, WindowNotFoundError
+from mxd_bot.collect import save_capture_frame
 from mxd_bot.decision import DecisionEngine
 from mxd_bot.detector import YoloDetector
 from mxd_bot.input_controller import InputController
@@ -51,6 +53,11 @@ class BotWorker(QThread):
         frame_interval = 1.0 / max(1.0, target_fps)
         preview_fps = float(config.get("ui", {}).get("preview_fps", 24))
         preview_interval = 1.0 / max(1.0, preview_fps)
+        collection = config.get("collection", {})
+        save_screenshots = bool(collection.get("enabled", False))
+        capture_interval = float(collection.get("interval_seconds", 1.0))
+        capture_dir = Path(str(collection.get("output_dir", "captures")))
+        capture_count = 0
 
         detector: YoloDetector | None = None
         controller: InputController | None = None
@@ -77,13 +84,19 @@ class BotWorker(QThread):
                 f"已启动：profile={profile_name}, dry_run={behavior['dry_run']}, "
                 f"auto_attack={behavior.get('auto_attack_enabled', True)}, "
                 f"target_fps={target_fps:.0f}, preview_fps={preview_fps:.0f}, "
+                f"save_screenshots={save_screenshots}, "
                 f"conf={config['model']['confidence']}"
             )
+            if save_screenshots:
+                self._emit_log(
+                    f"截图已开启：每 {capture_interval:.2f}s 一张 → {capture_dir}"
+                )
 
             last_frame_at = time.monotonic()
             fps = 0.0
             last_diag_at = 0.0
             last_preview_at = 0.0
+            last_capture_at = 0.0
 
             while not self._stop_requested:
                 loop_started = time.monotonic()
@@ -94,6 +107,13 @@ class BotWorker(QThread):
                 decision = decision_engine.decide(player, monsters)
 
                 now_mono = time.monotonic()
+                if save_screenshots and now_mono - last_capture_at >= capture_interval:
+                    save_capture_frame(frame, capture_dir, capture_count)
+                    capture_count += 1
+                    last_capture_at = now_mono
+                    if capture_count == 1 or capture_count % 20 == 0:
+                        self._emit_log(f"已保存截图 {capture_count} 张")
+
                 if now_mono - last_diag_at >= 2.0:
                     last_diag_at = now_mono
                     top_conf = max((box.confidence for box in detections), default=0.0)
@@ -143,6 +163,8 @@ class BotWorker(QThread):
                         "has_player": player is not None,
                         "dry_run": bool(behavior["dry_run"]),
                         "auto_attack": bool(behavior.get("auto_attack_enabled", True)),
+                        "save_screenshots": save_screenshots,
+                        "captured": capture_count,
                         "input_suspended": controller.input_suspended,
                         "profile": profile_name,
                     }
@@ -162,6 +184,8 @@ class BotWorker(QThread):
             if capture is not None:
                 capture.close()
             self._running = False
+            if save_screenshots:
+                self._emit_log(f"截图结束，共保存 {capture_count} 张")
             self._emit_log("已停止")
 
     def _emit_log(self, message: str) -> None:

@@ -102,6 +102,14 @@ class MainWindow(QMainWindow):
             bool(self._base_config["behavior"].get("auto_attack_enabled", True))
         )
 
+        self.save_screenshots_box = QCheckBox("开始截图")
+        self.save_screenshots_box.setChecked(
+            bool(self._base_config.get("collection", {}).get("enabled", False))
+        )
+        self.save_screenshots_box.setToolTip(
+            "勾选后运行期间按 collection.interval_seconds 保存游戏画面到 captures/"
+        )
+
         self.fps_box = QSpinBox()
         self.fps_box.setRange(10, 60)
         self.fps_box.setValue(int(self._base_config.get("ui", {}).get("target_fps", 60)))
@@ -127,6 +135,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.profile_box)
         layout.addWidget(self.dry_run_box)
         layout.addWidget(self.auto_attack_box)
+        layout.addWidget(self.save_screenshots_box)
         layout.addWidget(QLabel("识别FPS"))
         layout.addWidget(self.fps_box)
         layout.addWidget(QLabel("预览FPS"))
@@ -290,6 +299,8 @@ class MainWindow(QMainWindow):
         config["behavior"]["auto_attack_enabled"] = self.auto_attack_box.isChecked()
         config["behavior"]["debug_window"] = False
         config["behavior"]["startup_delay_seconds"] = 0
+        config.setdefault("collection", {})
+        config["collection"]["enabled"] = self.save_screenshots_box.isChecked()
         profile = config["profiles"][profile_name]
         profile.update(
             {
@@ -332,6 +343,7 @@ class MainWindow(QMainWindow):
         self.profile_box.setEnabled(False)
         self.dry_run_box.setEnabled(False)
         self.auto_attack_box.setEnabled(False)
+        self.save_screenshots_box.setEnabled(False)
         self.fps_box.setEnabled(False)
         self.preview_fps_box.setEnabled(False)
         self._set_key_fields_enabled(False)
@@ -398,6 +410,8 @@ class MainWindow(QMainWindow):
         self.monster_label.setText(str(status.get("monsters", 0)))
         mode = "仅预览" if status.get("dry_run") else "真实"
         mode += " / 攻开" if status.get("auto_attack") else " / 攻关"
+        if status.get("save_screenshots"):
+            mode += f" / 截图{status.get('captured', 0)}"
         if status.get("paused"):
             mode += " / 暂停"
         profile_name = str(status.get("profile", "-"))
@@ -416,6 +430,7 @@ class MainWindow(QMainWindow):
         self.profile_box.setEnabled(True)
         self.dry_run_box.setEnabled(True)
         self.auto_attack_box.setEnabled(True)
+        self.save_screenshots_box.setEnabled(True)
         self.fps_box.setEnabled(True)
         self.preview_fps_box.setEnabled(True)
         self._set_key_fields_enabled(True)

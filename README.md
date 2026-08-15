@@ -200,13 +200,16 @@ behavior:
 - 玩家左右朝向、跳跃、攻击和被特效部分遮挡的情况；
 - 有怪、无怪、UI 遮挡等负样本。
 
-运行：
+两种方式任选其一：
+
+1. **GUI（推荐）**：`run` 打开面板后勾选「开始截图」，再点开始。会按 `collection.interval_seconds`（当前 1s）把原始游戏画面存到 `captures/`，不影响识别和打怪。
+2. **单独采集命令**：
 
 ```powershell
 python -m mxd_bot --config config.yaml collect
 ```
 
-3 秒内切换到游戏窗口。程序默认每 0.35 秒保存一张图到 `captures/`：
+单独采集会倒计时 3 秒，然后按同样间隔保存：
 
 - `F9`：停止；
 - 预览窗口按 `q`：停止；
