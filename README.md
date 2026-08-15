@@ -355,6 +355,8 @@ python -m mxd_bot --config config.yaml run --profile warrior --live
 
 启动后有倒计时。真实模式用 `SendInput` 扫描码发键。**只在启动时把游戏窗口切到前台一次**，之后运行期间不会再抢焦点。切回游戏时，如果正在长按移动，会自动重新按下当前方向键。
 
+自动补血补蓝（`vitals`）默认开启：每帧用固定 ROI 读底部血蓝条颜色比例，低于阈值就按 `hp_potion_key` / `mp_potion_key`。GUI 左侧可开关自动喝药，并调整 HP/MP 百分比阈值和喝药冷却；这些值只覆盖本次启动。标定参考图在 `assets/vitals_roi_ref.png`；换分辨率或 UI 后改 `vitals.hp_roi` / `mp_roi`。
+
 攻击距离和按键示例：
 
 ```yaml

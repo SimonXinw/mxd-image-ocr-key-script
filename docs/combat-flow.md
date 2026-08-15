@@ -2,7 +2,7 @@
 
 > 本文件是打怪逻辑的**唯一权威说明**。改动 `decision.py` / `input_controller.py` / `player_locator.py` / `config.yaml` 里的战斗参数后，必须同步更新这里。
 >
-> 最后同步：2026-08-15，对应代码 `src/mxd_bot/decision.py` / `src/mxd_bot/input_controller.py` / `src/mxd_bot/gui_app.py`。
+> 最后同步：2026-08-16，对应代码 `src/mxd_bot/decision.py` / `src/mxd_bot/input_controller.py` / `src/mxd_bot/vitals.py` / `src/mxd_bot/gui_app.py`。
 
 ## 一句话概述
 
@@ -196,6 +196,16 @@ flowchart TD
 | `target_fps` | 60 | 识别 + 决策循环频率，决定反应速度 |
 | `preview_fps` | 24 | GUI 画面刷新频率，只影响观感和 CPU |
 
+### 血蓝：`vitals`
+
+| 参数 | 当前值 | 作用 |
+| --- | --- | --- |
+| `enabled` | true | 是否自动读条喝药；GUI「自动喝药」开关可覆盖本次启动 |
+| `hp_roi` / `mp_roi` | 见 config | 相对客户区比例 `[left, top, width, height]`，标定图 `assets/vitals_roi_ref.png` |
+| `hp_threshold` | 0.40 | HP 低于 40% 按 `hp_potion_key`；GUI 用百分比调整 |
+| `mp_threshold` | 0.30 | MP 低于 30% 按 `mp_potion_key`；GUI 用百分比调整 |
+| `cooldown_seconds` | 1.0 | 同类药的最短间隔；GUI 可调整 |
+
 ## 代码位置对照
 
 | 流程阶段 | 文件 | 关键函数 |
@@ -207,14 +217,15 @@ flowchart TD
 | 选目标 | `src/mxd_bot/decision.py` | `_select_target()`、`_match_locked_target()` |
 | 决定动作 | `src/mxd_bot/decision.py` | `decide()` |
 | 动作防抖 | `src/mxd_bot/decision.py` | `_stabilize_action()` |
-| 发按键 | `src/mxd_bot/input_controller.py` | `execute()`、`_hold_direction()` |
-| 画框 | `src/mxd_bot/overlay.py` | `draw_overlay()` |
+| 血蓝补药 | `src/mxd_bot/vitals.py` | `VitalsMonitor.tick()`、`bar_fill_ratio()` |
+| 发按键 | `src/mxd_bot/input_controller.py` | `execute()`、`use_consumable()`、`_hold_direction()` |
+| 画框 | `src/mxd_bot/overlay.py` | `annotate_frame()` |
 | GUI 串联 | `src/mxd_bot/gui_worker.py` | 主循环、日志、手动测试按键 |
 
 ## 已知的逻辑边界
 
 - 只处理同层或略高平台的怪，没有绳梯、传送点、小地图寻路。
-- 没有自动补药、死亡恢复、掉落拾取。
+- 没有自动死亡恢复、掉落拾取；血蓝补药靠固定 ROI 颜色比例，UI/分辨率大变后需重标 `vitals.*_roi`。
 - 巡逻仅在**完全无怪**时启动：固定周期左右横向来回，不认识地图边缘。画面有怪但都不可达时是 `idle`，不会去巡逻。
 - 真实发键使用 `SendInput` 扫描码。**只在启动时抢一次焦点**（`focus_game_window_once`），之后运行期间永不抢焦点。用 `GetForegroundWindow()` 判断前台变化；切回游戏且 `_held_direction` 仍在长按时，重发一次方向键 `keyDown`。
 - **必须以管理员身份运行**。`__main__.py` 在加载模型前调用 `ensure_running_as_admin()`，不是管理员就抛 `AdminRequiredError` 并退出。权限拦截由 Windows 内核的 UIPI 完成，不是项目代码做的：`SendInput` 照样返回成功，事件被系统丢弃，用户态无法绕过。

@@ -290,6 +290,29 @@ class InputController:
             self._release_direction()
 
     def press_configured_key(self, key_name: str) -> None:
+        key = self._resolve_configured_key(key_name)
+        if key is None:
+            return
+
+        self._ready = True
+        if key in MOVE_KEYS:
+            self._hold(key, max(0.12, self.move_pulse))
+        else:
+            self._press(key)
+        LOGGER.info("[手动测试] 已发送=%s key=%s | %s", key_name, key, self.describe_focus())
+
+    def use_consumable(self, key_name: str) -> None:
+        """自动补药等消耗品按键；演练模式只打日志。"""
+        key = self._resolve_configured_key(key_name)
+        if key is None:
+            return
+        if self.dry_run:
+            LOGGER.info("[演练] consumable=%s key=%s", key_name, key)
+            return
+        self._press(key)
+        LOGGER.info("[自动] consumable=%s key=%s", key_name, key)
+
+    def _resolve_configured_key(self, key_name: str) -> str | None:
         keys = {
             "attack": self.attack_key,
             "jump": self.jump_key,
@@ -302,15 +325,8 @@ class InputController:
         }
         key = keys.get(key_name)
         if key is None:
-            LOGGER.warning("未知手动按键动作：%s", key_name)
-            return
-
-        self._ready = True
-        if key in MOVE_KEYS:
-            self._hold(key, max(0.12, self.move_pulse))
-        else:
-            self._press(key)
-        LOGGER.info("[手动测试] 已发送=%s key=%s | %s", key_name, key, self.describe_focus())
+            LOGGER.warning("未知按键动作：%s", key_name)
+        return key
 
     def cast_due_buffs(self) -> None:
         now = time.monotonic()

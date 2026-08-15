@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 
 from mxd_bot.types import Box, Decision
+from mxd_bot.vitals import VitalsReading
 
 
 def annotate_frame(
@@ -13,6 +14,7 @@ def annotate_frame(
     decision: Decision,
     fps: float,
     paused: bool,
+    vitals: VitalsReading | None = None,
 ) -> np.ndarray:
     canvas = frame.copy()
 
@@ -54,10 +56,16 @@ def annotate_frame(
             2,
         )
 
+    if vitals is not None:
+        _draw_vitals(canvas, vitals)
+
     status = "PAUSED" if paused else decision.action.value
+    status_text = f"{status} | FPS {fps:.1f}"
+    if vitals is not None:
+        status_text += f" | HP {vitals.hp_ratio * 100:.0f}% MP {vitals.mp_ratio * 100:.0f}%"
     cv2.putText(
         canvas,
-        f"{status} | FPS {fps:.1f}",
+        status_text,
         (10, 25),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.6,
@@ -67,6 +75,24 @@ def annotate_frame(
 
     _draw_legend(canvas)
     return canvas
+
+
+def _draw_vitals(canvas: np.ndarray, vitals: VitalsReading) -> None:
+    for box, color, label in (
+        (vitals.hp_box, (0, 0, 255), f"HP {vitals.hp_ratio * 100:.0f}%"),
+        (vitals.mp_box, (255, 128, 0), f"MP {vitals.mp_ratio * 100:.0f}%"),
+    ):
+        left, top, right, bottom = box
+        cv2.rectangle(canvas, (left, top), (right, bottom), color, 1)
+        cv2.putText(
+            canvas,
+            label,
+            (left, max(12, top - 4)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.4,
+            color,
+            1,
+        )
 
 
 def _player_style(source: str) -> tuple[tuple[int, int, int], str]:

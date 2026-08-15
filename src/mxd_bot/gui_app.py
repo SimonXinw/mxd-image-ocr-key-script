@@ -10,6 +10,7 @@ from PySide6.QtGui import QImage, QPixmap, QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -197,6 +198,47 @@ class MainWindow(QMainWindow):
         keys_form.addRow("MP", self.mp_potion_key_edit)
         layout.addWidget(keys)
 
+        vitals_config = self._base_config.get("vitals", {})
+        vitals = QGroupBox("自动喝药")
+        vitals_form = QFormLayout(vitals)
+        vitals_form.setContentsMargins(8, 6, 8, 6)
+        vitals_form.setHorizontalSpacing(8)
+        vitals_form.setVerticalSpacing(4)
+
+        self.auto_potion_box = QCheckBox("启用自动补血补蓝")
+        self.auto_potion_box.setChecked(bool(vitals_config.get("enabled", False)))
+
+        self.hp_threshold_box = QSpinBox()
+        self.hp_threshold_box.setRange(1, 99)
+        self.hp_threshold_box.setSuffix("%")
+        self.hp_threshold_box.setValue(
+            round(float(vitals_config.get("hp_threshold", 0.40)) * 100)
+        )
+
+        self.mp_threshold_box = QSpinBox()
+        self.mp_threshold_box.setRange(1, 99)
+        self.mp_threshold_box.setSuffix("%")
+        self.mp_threshold_box.setValue(
+            round(float(vitals_config.get("mp_threshold", 0.30)) * 100)
+        )
+
+        self.potion_cooldown_box = QDoubleSpinBox()
+        self.potion_cooldown_box.setRange(0.2, 10.0)
+        self.potion_cooldown_box.setSingleStep(0.1)
+        self.potion_cooldown_box.setDecimals(1)
+        self.potion_cooldown_box.setSuffix(" 秒")
+        self.potion_cooldown_box.setValue(
+            float(vitals_config.get("cooldown_seconds", 1.0))
+        )
+
+        vitals_form.addRow(self.auto_potion_box)
+        vitals_form.addRow("HP 低于", self.hp_threshold_box)
+        vitals_form.addRow("MP 低于", self.mp_threshold_box)
+        vitals_form.addRow("喝药冷却", self.potion_cooldown_box)
+        self.auto_potion_box.toggled.connect(self._update_vitals_fields_enabled)
+        self._update_vitals_fields_enabled()
+        layout.addWidget(vitals)
+
         tests = QGroupBox("手动测试")
         tests_layout = QGridLayout(tests)
         tests_layout.setContentsMargins(6, 6, 6, 6)
@@ -347,6 +389,11 @@ class MainWindow(QMainWindow):
         config["behavior"]["startup_delay_seconds"] = 0
         config.setdefault("collection", {})
         config["collection"]["enabled"] = self.save_screenshots_box.isChecked()
+        config.setdefault("vitals", {})
+        config["vitals"]["enabled"] = self.auto_potion_box.isChecked()
+        config["vitals"]["hp_threshold"] = self.hp_threshold_box.value() / 100
+        config["vitals"]["mp_threshold"] = self.mp_threshold_box.value() / 100
+        config["vitals"]["cooldown_seconds"] = self.potion_cooldown_box.value()
         profile = config["profiles"][profile_name]
         profile.update(
             {
@@ -402,6 +449,7 @@ class MainWindow(QMainWindow):
         self.fps_box.setEnabled(False)
         self.preview_fps_box.setEnabled(False)
         self._set_key_fields_enabled(False)
+        self._set_vitals_controls_enabled(False)
 
     def _on_stop(self) -> None:
         if self._worker is None:
@@ -437,6 +485,27 @@ class MainWindow(QMainWindow):
         ):
             field.setEnabled(enabled)
 
+    def _set_vitals_controls_enabled(self, enabled: bool) -> None:
+        self.auto_potion_box.setEnabled(enabled)
+        fields_enabled = enabled and self.auto_potion_box.isChecked()
+        for field in (
+            self.hp_threshold_box,
+            self.mp_threshold_box,
+            self.potion_cooldown_box,
+        ):
+            field.setEnabled(fields_enabled)
+
+    def _update_vitals_fields_enabled(self, _checked: bool | None = None) -> None:
+        fields_enabled = (
+            self.auto_potion_box.isEnabled() and self.auto_potion_box.isChecked()
+        )
+        for field in (
+            self.hp_threshold_box,
+            self.mp_threshold_box,
+            self.potion_cooldown_box,
+        ):
+            field.setEnabled(fields_enabled)
+
     def _on_frame(self, rgb_frame: object) -> None:
         if not isinstance(rgb_frame, np.ndarray):
             return
@@ -465,6 +534,15 @@ class MainWindow(QMainWindow):
         self.monster_label.setText(str(status.get("monsters", 0)))
         mode = "仅预览" if status.get("dry_run") else "真实"
         mode += " / 攻开" if status.get("auto_attack") else " / 攻关"
+        if status.get("vitals_enabled"):
+            hp_ratio = status.get("hp_ratio")
+            mp_ratio = status.get("mp_ratio")
+            if hp_ratio is not None and mp_ratio is not None:
+                mode += f" / 药开 HP{hp_ratio:.0f}% MP{mp_ratio:.0f}%"
+            else:
+                mode += " / 药开"
+        else:
+            mode += " / 药关"
         if status.get("save_screenshots"):
             mode += f" / 截图{status.get('captured', 0)}"
         if status.get("paused"):
@@ -491,6 +569,7 @@ class MainWindow(QMainWindow):
         self.fps_box.setEnabled(True)
         self.preview_fps_box.setEnabled(True)
         self._set_key_fields_enabled(True)
+        self._set_vitals_controls_enabled(True)
         self._worker = None
 
     def _append_log(self, message: str) -> None:

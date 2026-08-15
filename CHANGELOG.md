@@ -24,6 +24,16 @@
 
 ---
 
+## 2026-08-16
+
+### feat: 固定 ROI 自动读血蓝并喝药
+
+- 背景：底部状态栏位置固定，可用颜色比例判断 HP/MP，无需 OCR/YOLO。
+- 做法：新增 `vitals.py`；GUI/CLI 主循环每帧读取 ROI；低于阈值调用 `use_consumable`；预览绘制 HP/MP 框与百分比。
+- GUI：左侧新增「自动喝药」开关、HP/MP 百分比阈值及喝药冷却；启动后锁定，停止后可调整。
+- 参数：`vitals.enabled/hp_roi/mp_roi/hp_threshold/mp_threshold/cooldown_seconds`；标定参考 `assets/vitals_roi_ref.png`。
+- 文档：同步 `README.md`、`config.yaml`、`config.example.yaml`、`docs/combat-flow.md`、本文件。
+
 ## 2026-08-15
 
 ### feat: 多模型按数据集命名并可在 GUI 下拉切换

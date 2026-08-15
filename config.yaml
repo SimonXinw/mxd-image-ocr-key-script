@@ -102,6 +102,17 @@ collection:
   output_dir: "captures"
   interval_seconds: 1.0
 
+# 固定 ROI 读血蓝条。比例基于 1024x576 满血满蓝标定，见 assets/vitals_roi_ref.png。
+vitals:
+  enabled: true
+  show_overlay: true
+  # [left, top, width, height] 相对客户区比例
+  hp_roi: [0.1709, 0.9757, 0.0840, 0.0156]
+  mp_roi: [0.2559, 0.9757, 0.0830, 0.0156]
+  hp_threshold: 0.40
+  mp_threshold: 0.30
+  cooldown_seconds: 1.0
+
 training:
   base_model: "yolo11n.pt"
   data: "dataset/data.yaml"

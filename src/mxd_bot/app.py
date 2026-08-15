@@ -13,6 +13,7 @@ from mxd_bot.detector import YoloDetector
 from mxd_bot.input_controller import InputController
 from mxd_bot.overlay import annotate_frame
 from mxd_bot.player_locator import PlayerLocator
+from mxd_bot.vitals import VitalsMonitor
 
 LOGGER = logging.getLogger(__name__)
 VK_F8 = 0x77
@@ -29,6 +30,7 @@ def run_bot(config: dict[str, Any]) -> None:
     player_locator = PlayerLocator(config["player"], config["model"]["player_class"])
     decision_engine = DecisionEngine(behavior, profile)
     controller = InputController(behavior, profile)
+    vitals_monitor = VitalsMonitor(config.get("vitals"))
     capture = WindowCapture(
         config["window"]["title_contains"],
         config["window"].get("capture_region"),
@@ -67,6 +69,7 @@ def run_bot(config: dict[str, Any]) -> None:
             player = player_locator.locate(frame, detections)
             monsters = [box for box in detections if box.class_name in monster_classes]
             decision = decision_engine.decide(player, monsters)
+            vitals_reading = None
 
             now_mono = time.monotonic()
             if now_mono - last_diag_at >= 2.0:
@@ -88,6 +91,7 @@ def run_bot(config: dict[str, Any]) -> None:
                 )
 
             if not paused:
+                vitals_reading = vitals_monitor.tick(frame, controller)
                 controller.execute(decision)
                 controller.cast_due_buffs()
 
@@ -105,6 +109,7 @@ def run_bot(config: dict[str, Any]) -> None:
                     decision,
                     fps,
                     paused,
+                    vitals=vitals_reading if vitals_monitor.show_overlay else None,
                 )
                 cv2.imshow("MXD Vision Debug", debug_frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):

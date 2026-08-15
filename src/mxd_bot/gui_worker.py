@@ -16,6 +16,7 @@ from mxd_bot.detector import YoloDetector
 from mxd_bot.input_controller import InputController
 from mxd_bot.overlay import annotate_frame, bgr_to_rgb
 from mxd_bot.player_locator import PlayerLocator
+from mxd_bot.vitals import VitalsMonitor
 
 LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class BotWorker(QThread):
             player_locator = PlayerLocator(config["player"], config["model"]["player_class"])
             decision_engine = DecisionEngine(behavior, profile)
             controller = InputController(behavior, profile)
+            vitals_monitor = VitalsMonitor(config.get("vitals"))
             capture = WindowCapture(
                 config["window"]["title_contains"],
                 config["window"].get("capture_region"),
@@ -86,6 +88,7 @@ class BotWorker(QThread):
                 f"auto_attack={behavior.get('auto_attack_enabled', True)}, "
                 f"target_fps={target_fps:.0f}, preview_fps={preview_fps:.0f}, "
                 f"save_screenshots={save_screenshots}, "
+                f"vitals={vitals_monitor.enabled}, "
                 f"conf={config['model']['confidence']}"
             )
             if save_screenshots:
@@ -106,6 +109,7 @@ class BotWorker(QThread):
                 player = player_locator.locate(frame, detections)
                 monsters = [box for box in detections if box.class_name in monster_classes]
                 decision = decision_engine.decide(player, monsters)
+                vitals_reading = None
 
                 now_mono = time.monotonic()
                 if save_screenshots and now_mono - last_capture_at >= capture_interval:
@@ -133,10 +137,13 @@ class BotWorker(QThread):
                 if not self._paused:
                     while not self._manual_keys.empty():
                         controller.press_configured_key(self._manual_keys.get_nowait())
+                    vitals_reading = vitals_monitor.tick(frame, controller)
                     controller.execute(decision)
                     controller.cast_due_buffs()
                 else:
                     controller.release_all()
+                    if vitals_monitor.enabled and vitals_monitor.show_overlay:
+                        vitals_reading = vitals_monitor.read(frame)
 
                 now = time.monotonic()
                 elapsed = now - last_frame_at
@@ -153,6 +160,7 @@ class BotWorker(QThread):
                         decision,
                         fps,
                         self._paused,
+                        vitals=vitals_reading if vitals_monitor.show_overlay else None,
                     )
                     self.frame_ready.emit(bgr_to_rgb(annotated))
                 self.status_ready.emit(
@@ -164,6 +172,17 @@ class BotWorker(QThread):
                         "has_player": player is not None,
                         "dry_run": bool(behavior["dry_run"]),
                         "auto_attack": bool(behavior.get("auto_attack_enabled", True)),
+                        "vitals_enabled": vitals_monitor.enabled,
+                        "hp_ratio": (
+                            round(vitals_reading.hp_ratio * 100)
+                            if vitals_reading is not None
+                            else None
+                        ),
+                        "mp_ratio": (
+                            round(vitals_reading.mp_ratio * 100)
+                            if vitals_reading is not None
+                            else None
+                        ),
                         "save_screenshots": save_screenshots,
                         "captured": capture_count,
                         "input_suspended": controller.input_suspended,
