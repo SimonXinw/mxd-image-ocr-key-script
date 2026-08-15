@@ -11,7 +11,7 @@ from mxd_bot.types import Box
 
 class YoloDetector:
     def __init__(self, model_config: dict[str, Any]) -> None:
-        weights = Path(model_config["weights"])
+        weights = Path(model_config["weights"]).resolve()
         if not weights.exists():
             raise FileNotFoundError(
                 f"找不到模型权重：{weights}。请先训练，再把 best.pt 复制到该位置。"

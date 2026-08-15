@@ -13,6 +13,8 @@ window:
 
 model:
   weights: "models/best.pt"
+  # GUI 会递归扫描该目录中的 .pt，并显示在「模型」下拉框。
+  weights_dir: "models"
   # 若预览里几乎没有框，先降到 0.12~0.25 观察；长期仍需用本服截图重训。
   confidence: 0.25
   image_size: 640
@@ -20,7 +22,8 @@ model:
   device: auto
   tracking_enabled: true
   tracker: "bytetrack.yaml"
-  monster_classes: ["mob"]
+  # 可同时写多个：旧模型常用 mob，Roboflow 导出常用 monster。
+  monster_classes: ["mob", "monster"]
   player_class: "player"
 
 player:
@@ -106,11 +109,15 @@ collection:
 training:
   base_model: "yolo11n.pt"
   data: "dataset/data.yaml"
+  # 留空：自动输出 models/<data.yaml 所在文件夹名>.pt；也可写 models/xxx.pt。
+  output_weights: null
+  # 留空：使用输出 pt 的文件名，训练过程位于 runs/<名称>/。
+  run_name: null
   epochs: 100
   image_size: 640
   batch: 8
   workers: 4
   # 不写则跟随 model.device；可单独写成 auto / cuda / cpu / 0
   device: auto
-  # 续训默认读取这个权重：runs/mxd_detect/weights/last.pt
-  resume_weights: "runs/mxd_detect/weights/last.pt"
+  # 留空时自动使用 runs/<本次任务名>/weights/last.pt。
+  resume_weights: null

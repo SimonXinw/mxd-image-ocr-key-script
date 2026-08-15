@@ -6,6 +6,7 @@ __pycache__/
 runs/
 datasets/
 models/*.onnx
+models/*/
 models/maplestory_monster*/
 yolo11n.pt
 captures/*.png

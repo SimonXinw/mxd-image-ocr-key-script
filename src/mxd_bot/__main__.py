@@ -11,6 +11,8 @@ from mxd_bot.device import describe_torch_backend
 from mxd_bot.input_controller import AdminRequiredError, ensure_running_as_admin
 from mxd_bot.train import train_model
 
+LOGGER = logging.getLogger(__name__)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="MXD 屏幕视觉自动化实验框架")
@@ -25,11 +27,27 @@ def main() -> None:
     train_parser.add_argument(
         "--resume",
         action="store_true",
-        help="从 runs/mxd_detect/weights/last.pt 断点续训",
+        help="按本次任务名从 runs/<名称>/weights/last.pt 断点续训",
     )
     train_parser.add_argument(
         "--device",
         help="覆盖设备：auto / cuda / cpu / 0",
+    )
+    train_parser.add_argument(
+        "--data",
+        help="覆盖训练数据集 data.yaml，例如 models/刺蘑菇-僵尸蘑菇/data.yaml",
+    )
+    train_parser.add_argument(
+        "--output",
+        help="最佳权重输出名或路径；只写 xxx.pt 时保存到 models/xxx.pt",
+    )
+    train_parser.add_argument(
+        "--run-name",
+        help="覆盖 runs/ 下的训练任务名；默认使用输出 pt 的文件名",
+    )
+    train_parser.add_argument(
+        "--resume-weights",
+        help="指定续训使用的 last.pt；默认按本次任务名从 runs/<名称>/weights/last.pt 查找",
     )
 
     run_parser = subparsers.add_parser(
@@ -54,7 +72,7 @@ def main() -> None:
     )
 
     if args.command == "doctor":
-        logging.info(describe_torch_backend())
+        LOGGER.info(describe_torch_backend())
         from mxd_bot.device import resolve_device
 
         resolve_device("auto")
@@ -69,6 +87,14 @@ def main() -> None:
         if getattr(args, "device", None):
             runtime_config["model"]["device"] = args.device
             runtime_config["training"]["device"] = args.device
+        if args.data:
+            runtime_config["training"]["data"] = args.data
+        if args.output:
+            runtime_config["training"]["output_weights"] = args.output
+        if args.run_name:
+            runtime_config["training"]["run_name"] = args.run_name
+        if args.resume_weights:
+            runtime_config["training"]["resume_weights"] = args.resume_weights
         train_model(runtime_config, resume=bool(args.resume))
     elif args.command in {"gui", "run"}:
         # 放在加载模型之前，权限不对就立刻失败，不用等几十秒。

@@ -82,6 +82,7 @@ class BotWorker(QThread):
             self._running = True
             self._emit_log(
                 f"已启动：profile={profile_name}, dry_run={behavior['dry_run']}, "
+                f"weights={config['model']['weights']}, "
                 f"auto_attack={behavior.get('auto_attack_enabled', True)}, "
                 f"target_fps={target_fps:.0f}, preview_fps={preview_fps:.0f}, "
                 f"save_screenshots={save_screenshots}, "

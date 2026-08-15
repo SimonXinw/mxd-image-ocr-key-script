@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from mxd_bot.gui_worker import BotWorker
+from mxd_bot.model_paths import discover_weight_files
 
 PROFILE_NAMES = {
     "warrior": "战士",
@@ -93,6 +95,15 @@ class MainWindow(QMainWindow):
             self.profile_box.setCurrentIndex(index)
         self.profile_box.setMaximumWidth(210)
 
+        self.weights_box = QComboBox()
+        self.weights_box.setMaximumWidth(190)
+        self.weights_box.setToolTip("从 models/ 递归发现 .pt；切换模型后重新点击开始")
+        self.refresh_weights_button = QPushButton("刷新模型")
+        self.refresh_weights_button.setFixedHeight(28)
+        self.refresh_weights_button.setMaximumWidth(72)
+        self.refresh_weights_button.clicked.connect(self._refresh_weight_options)
+        self._refresh_weight_options()
+
         self.dry_run_box = QCheckBox("仅预览")
         self.dry_run_box.setChecked(bool(self._base_config["behavior"].get("dry_run", False)))
         self.dry_run_box.setToolTip("勾选后不发送任何自动按键，只看预览和日志")
@@ -131,6 +142,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.start_button)
         layout.addWidget(self.pause_button)
         layout.addWidget(self.stop_button)
+        layout.addWidget(QLabel("模型"))
+        layout.addWidget(self.weights_box)
+        layout.addWidget(self.refresh_weights_button)
         layout.addWidget(QLabel("职业"))
         layout.addWidget(self.profile_box)
         layout.addWidget(self.dry_run_box)
@@ -291,8 +305,40 @@ class MainWindow(QMainWindow):
             return display_name
         return f"{display_name}（攻击范围 {attack_range}）"
 
+    def _refresh_weight_options(self) -> None:
+        configured = Path(self._base_config["model"]["weights"]).resolve()
+        current_data = self.weights_box.currentData()
+        selected = Path(str(current_data)).resolve() if current_data else configured
+        models_dir = Path(
+            self._base_config["model"].get("weights_dir", "models")
+        ).resolve()
+        weights = discover_weight_files(models_dir)
+        if configured.exists() and configured not in weights:
+            weights.insert(0, configured)
+
+        self.weights_box.clear()
+        for path in weights:
+            self.weights_box.addItem(self._weight_label(path, models_dir), str(path))
+
+        index = self.weights_box.findData(str(selected))
+        if index < 0:
+            index = self.weights_box.findData(str(configured))
+        if index >= 0:
+            self.weights_box.setCurrentIndex(index)
+
+    @staticmethod
+    def _weight_label(weights: Path, models_dir: Path) -> str:
+        try:
+            relative = weights.relative_to(models_dir).with_suffix("")
+        except ValueError:
+            return weights.stem
+        return " / ".join(relative.parts)
+
     def _build_runtime_config(self) -> dict[str, Any]:
         config = deepcopy(self._base_config)
+        selected_weights = self.weights_box.currentData()
+        if selected_weights:
+            config["model"]["weights"] = str(selected_weights)
         profile_name = self._selected_profile_name()
         config["behavior"]["profile"] = profile_name
         config["behavior"]["dry_run"] = self.dry_run_box.isChecked()
@@ -327,6 +373,13 @@ class MainWindow(QMainWindow):
         if config["behavior"]["profile"] not in config["profiles"]:
             QMessageBox.warning(self, "配置错误", "未知职业配置")
             return
+        if not self.weights_box.currentData():
+            QMessageBox.warning(
+                self,
+                "缺少模型",
+                "models/ 下没有可用的 .pt，请先训练模型再刷新。",
+            )
+            return
 
         self._worker = BotWorker(config)
         self._worker.frame_ready.connect(self._on_frame)
@@ -340,6 +393,8 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(True)
         self.pause_button.setEnabled(True)
         self.pause_button.setText("暂停")
+        self.weights_box.setEnabled(False)
+        self.refresh_weights_button.setEnabled(False)
         self.profile_box.setEnabled(False)
         self.dry_run_box.setEnabled(False)
         self.auto_attack_box.setEnabled(False)
@@ -427,6 +482,8 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(False)
         self.pause_button.setEnabled(False)
         self.pause_button.setText("暂停")
+        self.weights_box.setEnabled(True)
+        self.refresh_weights_button.setEnabled(True)
         self.profile_box.setEnabled(True)
         self.dry_run_box.setEnabled(True)
         self.auto_attack_box.setEnabled(True)

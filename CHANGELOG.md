@@ -26,6 +26,15 @@
 
 ## 2026-08-15
 
+### feat: 多模型按数据集命名并可在 GUI 下拉切换
+
+- 背景：不同怪物数据集都输出 `best.pt` 容易覆盖，也无法在预览窗口快速选择模型。
+- 训练：默认按 `data.yaml` 所在文件夹命名，复制到 `models/<数据集名>.pt`；新增 `--data`、`--output`、`--run-name`、`--resume-weights` 参数。
+- GUI：递归扫描 `model.weights_dir` 中的 `.pt`，显示模型下拉框和刷新按钮；所选权重仅在本次启动时传给 Worker。
+- 中文：模型文件名和 GUI 显示保留中文。
+- 数据集：修正 `models/刺蘑菇-僵尸蘑菇/data.yaml` 多写一层 `../` 的路径；类别保持 Roboflow 原名 `monster`。`monster_classes` 同时接受 `mob` 与 `monster`，兼容旧 `best.pt`。
+- 文档：同步 `README.md`、`config.yaml`、`config.example.yaml`、`docs/combat-flow.md`、本文件。
+
 ### feat: GUI 增加「开始截图」，采集间隔改为 1 秒
 
 - 背景：每次采集都要单独跑 `collect` 命令不方便；希望像「仅预览」一样勾一下就能边跑边存图。

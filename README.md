@@ -56,7 +56,7 @@ C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train
 C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run
 ```
 
-`gui` 命令效果相同。左侧可切换职业、演练/真实、目标帧率；右侧是截屏镜像+检测框。
+`gui` 命令效果相同。顶部「模型」下拉框会递归读取 `models/` 中的 `.pt`；选好模型后点开始。运行中模型选择会锁定，停止后才能切换。
 
 只要命令行、不要面板时：
 
@@ -73,6 +73,14 @@ C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml run --live
 重要：仓库里如果已有 `models/best.pt`，也可能只是合成色块冒烟模型，**不能直接认游戏怪物**。回家第一件事是采真实截图并重新训练。
 
 ### 已下载 Roboflow 数据集时
+
+当前仓库里的「刺蘑菇-僵尸蘑菇」数据集可以直接训练：
+
+```powershell
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train --data "models\刺蘑菇-僵尸蘑菇\data.yaml"
+```
+
+默认按数据集文件夹命名，最佳权重会复制为 `models/刺蘑菇-僵尸蘑菇.pt`。中文文件名和路径可以直接使用。该数据集类别保持 Roboflow 原名 `monster` / `player`；`config.yaml` 的 `monster_classes` 同时包含 `mob` 和 `monster`，新旧模型都能识别。
 
 如果 ZIP 解压到了 `models/maplestory_monster.v10i.yolov11`：
 
@@ -255,30 +263,33 @@ dataset/
 
 ## 5. 训练 YOLO
 
-确认数据目录完成后：
+确认数据目录完成后。未指定输出名时，程序使用 `data.yaml` 所在文件夹名，例如 `dataset/data.yaml` 会输出 `models/dataset.pt`：
 
 ```powershell
 C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train
 ```
 
+指定数据集和输出名：
+
+```powershell
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train --data "models\刺蘑菇-僵尸蘑菇\data.yaml" --output "刺蘑菇-僵尸蘑菇-v1.pt"
+```
+
+只写文件名时自动保存到 `models/`；也可以给 `--output` 传完整或相对路径。`--run-name` 可单独指定 `runs/` 下的训练任务目录，默认与输出 `.pt` 同名。
+
 中途可用 `Ctrl+C` 停止。要接着上次进度续训：
 
 ```powershell
-C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train --resume
+C:\mxd-venv\Scripts\python.exe -m mxd_bot --config config.yaml train --resume --data "models\刺蘑菇-僵尸蘑菇\data.yaml"
 ```
 
-续训读取 `runs/mxd_detect/weights/last.pt`。如果这个文件不存在，说明还没有可续的断点，需要先完整开训一次。
+续训默认读取 `runs/<模型名>/weights/last.pt`；也可通过 `--resume-weights` 明确指定某个 `last.pt`。
 
-默认从 `yolo11n.pt` 迁移学习 100 轮。训练结果在：
-
-```text
-runs/mxd_detect/
-```
-
-最佳权重会自动复制到：
+默认从 `yolo11n.pt` 迁移学习 100 轮。以「刺蘑菇-僵尸蘑菇」为例，训练过程和最终权重分别在：
 
 ```text
-models/best.pt
+runs/刺蘑菇-僵尸蘑菇/
+models/刺蘑菇-僵尸蘑菇.pt
 ```
 
 显存不足时修改：
@@ -291,7 +302,7 @@ training:
 
 CPU 训练过慢时可用带 GPU 的电脑或 Colab 训练，再把 `best.pt` 放到本项目的 `models/`。
 
-不要只看训练集结果。至少检查 `runs/mxd_detect/val_batch*_pred.jpg`、混淆矩阵以及实际游戏预览；漏检多就补漏检场景，误报多就补相似背景的负样本。
+不要只看训练集结果。至少检查对应的 `runs/<模型名>/val_batch*_pred.jpg`、混淆矩阵以及实际游戏预览；漏检多就补漏检场景，误报多就补相似背景的负样本。
 
 ## 6. 先以演练模式启动
 
@@ -387,7 +398,7 @@ player:
 
 1. 在新地图再采 200～500 张；
 2. 标注后混入旧数据，确保旧地图不会遗忘；
-3. 将 `training.base_model` 改为当前 `models/best.pt`；
+3. 将 `training.base_model` 改为当前效果最好的 `.pt`；
 4. 训练 30～80 轮并重新检查两个地图。
 
 如果新图有多层平台、绳梯或传送点，仅靠“最近怪物”会做出错误路线。此时应为每张地图增加小地图定位、平台区域和预设巡逻路线，而不是盲目增加 YOLO 轮数。
@@ -398,9 +409,9 @@ player:
 
 修改 `window.title_contains`，确保窗口可见且没有最小化。标题匹配忽略大小写。
 
-### `models/best.pt` 不存在
+### GUI 模型下拉框是空的
 
-先完成标注并运行训练，或者把其他电脑训练出的权重复制到该路径。
+先完成标注并运行训练，或者把其他电脑训练出的 `.pt` 放进 `models/`，然后点击「刷新模型」。
 
 ### FPS 很低
 

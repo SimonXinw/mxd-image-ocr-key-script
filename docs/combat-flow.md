@@ -12,7 +12,7 @@
 
 | 层 | 个数 | 内容 |
 | --- | --- | --- |
-| YOLO 检测类 | 2 | `mob`、`player`（见 `dataset/data.yaml`） |
+| YOLO 检测类 | 2 | 怪类名常见 `mob` / `monster`，玩家为 `player`；由 `model.monster_classes` 过滤 |
 | 决策动作类 | 8 | `idle`、`move_left`、`move_right`、`attack`、`jump_left`、`jump_right`、`patrol_left`、`patrol_right` |
 
 当前模型仍然只有 2 个检测类。完整的平台寻路下一阶段建议扩成 4 类：
@@ -179,6 +179,8 @@ flowchart TD
 
 | 参数 | 当前值 | 作用 |
 | --- | --- | --- |
+| `model.weights` | models/best.pt | 默认推理权重；GUI 选择模型后仅覆盖本次运行 |
+| `model.weights_dir` | models | GUI 递归扫描该目录中的 `.pt` |
 | `model.confidence` | 0.45 | YOLO 置信度阈值，移动怪分数会掉，别设太高 |
 | `model.tracking_enabled` | true | 开 ByteTrack，给怪分配持续 `track_id` |
 | `player.locator` | hybrid | 优先名字模板，找不到再用 YOLO |
@@ -198,6 +200,7 @@ flowchart TD
 
 | 流程阶段 | 文件 | 关键函数 |
 | --- | --- | --- |
+| 训练与模型命名 | `src/mxd_bot/train.py`、`model_paths.py` | `train_model()`、`resolve_output_weights()` |
 | 抓画面 | `src/mxd_bot/capture.py` | `grab()`、`_grab_client()`（mss 优先，其次 PrintWindow / BitBlt） |
 | 识别 | `src/mxd_bot/detector.py` | YOLO 推理，开启 tracking 时走 `track()` |
 | 找人 | `src/mxd_bot/player_locator.py` | `locate()`、`_match_template()` |
